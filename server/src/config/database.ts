@@ -13,6 +13,10 @@
 
 import mongoose from 'mongoose';
 import chalk from 'chalk';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 /**
  * Database Configuration Interface
@@ -22,6 +26,51 @@ interface DatabaseConfig {
   uri: string;                          // MongoDB connection string
   options: mongoose.ConnectOptions;     // Mongoose connection options
 }
+
+/**
+ * Check and Auto-Seed Database in Development
+ * Automatically runs seed script if database is empty in development mode
+ * 
+ * @returns {Promise<void>} Promise that resolves when seeding check is complete
+ */
+const checkAndAutoSeed = async (): Promise<void> => {
+  // Only run auto-seeding in development environment
+  if (process.env.NODE_ENV !== 'development') {
+    return;
+  }
+
+  try {
+    // Check if we have any existing data
+    const collections = await mongoose.connection.db.listCollections().toArray();
+    const userCollection = collections.find(col => col.name === 'users');
+    
+    if (userCollection) {
+      // Check if users collection has any documents
+      const userCount = await mongoose.connection.db.collection('users').countDocuments();
+      if (userCount > 0) {
+        console.log(chalk.blue('📊 Database already contains data, skipping auto-seeding'));
+        return;
+      }
+    }
+
+    // Database is empty, run seed script
+    console.log(chalk.yellow('🌱 Empty database detected, running auto-seed...'));
+    const { stdout, stderr } = await execAsync('node src/scripts/seedFull.js', {
+      cwd: process.cwd()
+    });
+
+    if (stderr) {
+      console.error(chalk.red('⚠️  Seed script warnings:'), stderr);
+    }
+
+    console.log(chalk.green('✅ Auto-seeding completed successfully'));
+    console.log(chalk.gray('📝 Seed output:'), stdout);
+
+  } catch (error) {
+    console.error(chalk.red('❌ Auto-seeding failed:'), error);
+    console.log(chalk.yellow('💡 You can manually run the seed script: node src/scripts/seedFull.js'));
+  }
+};
 
 /**
  * Get Database Configuration Based on Environment
@@ -84,6 +133,9 @@ const getDatabaseConfig = (): DatabaseConfig => {
     
     const dbName = mongoose.connection.db?.databaseName;
     console.log(chalk.green(`✅ MongoDB Connected Successfully to: ${dbName}`));
+    
+    // Auto-seed database in development
+    await checkAndAutoSeed();
     
     // Handle connection events
     mongoose.connection.on('error', (error) => {
@@ -150,5 +202,53 @@ export const connectForSeeding = async (): Promise<void> => {
   } catch (error) {
     console.error(chalk.red('❌ Database Connection Error:'), error);
     throw error;
+  }
+};
+
+/**
+ * Auto-Seeding Function for Development
+ * Checks if database is empty and runs comprehensive seeding if needed
+ */
+export const checkAndAutoSeed = async (): Promise<void> => {
+  try {
+    // Import models (dynamic import to avoid circular dependencies)
+    const User = require('../models/User');
+    const Product = require('../models/Product');
+    
+    // Check if database has any users
+    const userCount = await User.countDocuments();
+    
+    if (userCount === 0) {
+      console.log(chalk.yellow('🌱 Database is empty - running auto-seed...'));
+      
+      // Import and run the comprehensive seed function
+      const seedFunction = require('../scripts/seedFull');
+      
+      // Note: The seedFull.js file exports the seed function, we need to call it
+      // Since it's a standalone script, we'll use child_process to execute it
+      const { exec } = require('child_process');
+      const path = require('path');
+      
+      return new Promise((resolve, reject) => {
+        const seedPath = path.join(__dirname, '../scripts/seedFull.js');
+        exec(`node "${seedPath}"`, (error: any, stdout: string, stderr: string) => {
+          if (error) {
+            console.error(chalk.red('❌ Auto-seeding failed:'), error);
+            reject(error);
+            return;
+          }
+          
+          console.log(chalk.green('✅ Auto-seeding completed successfully!'));
+          console.log(chalk.blue('📊 Ready to use with test data'));
+          resolve();
+        });
+      });
+    } else {
+      console.log(chalk.green(`✅ Database has ${userCount} users - skipping auto-seed`));
+    }
+    
+  } catch (error) {
+    console.error(chalk.red('❌ Auto-seeding error:'), error);
+    // Don't throw error - let server continue even if seeding fails
   }
 };

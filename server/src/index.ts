@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -42,6 +43,38 @@ const PORT = process.env.PORT || 5000;
 // Helmet: Sets various HTTP headers for security
 app.use(helmet());
 
+/**
+ * Rate Limiting Middleware - Brute Force Protection
+ * Prevents brute force attacks by limiting requests per IP
+ */
+// General API rate limiting: 100 requests per 15 minutes per IP
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Strict login rate limiting: 5 attempts per 15 minutes per IP
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 login requests per windowMs
+  message: {
+    error: 'Too many login attempts from this IP, please try again after 15 minutes.',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Don't count successful requests
+});
+
+// Apply general rate limiting to all API routes
+app.use('/api', generalLimiter);
+
 // CORS: Configure cross-origin resource sharing
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',  // Allow frontend URL
@@ -69,7 +102,7 @@ app.use('/api/images', express.static(path.resolve(__dirname, '../uploads')));
 /**
  * API Route Configuration
  */
-app.use('/api/users', userRoutes);      // User authentication and profile routes
+app.use('/api/users', loginLimiter, userRoutes);      // User authentication and profile routes with login protection
 app.use('/api/products', productRoutes); // Product management and statistics routes
 app.use('/api/logs', logRoutes);         // Logging and analytics routes
 

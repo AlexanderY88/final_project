@@ -28,6 +28,7 @@ A comprehensive Node.js/Express backend API for product management with role-bas
 - ✅ **Quantity History Tracking** for inventory management
 
 ### **Security Features**
+- 🛡️ **Rate Limiting Protection** against brute force attacks
 - 🛡️ **File Type Validation** using magic numbers
 - 🛡️ **Antivirus Scanning** with ClamAV integration
 - 🛡️ **JWT Authentication** with bcrypt password hashing
@@ -40,6 +41,7 @@ A comprehensive Node.js/Express backend API for product management with role-bas
 ```json
 {
   "express": "^4.18.2",
+  "express-rate-limit": "^7.1.5",
   "mongoose": "^7.5.0",
   "jsonwebtoken": "^9.0.2",
   "bcryptjs": "^2.4.3",
@@ -87,7 +89,7 @@ npm install
 ### **3. Install Required Packages**
 ```bash
 # In server directory
-npm install express mongoose jsonwebtoken bcryptjs joi multer file-type clamscan cors helmet lodash chalk
+npm install express express-rate-limit mongoose jsonwebtoken bcryptjs joi multer file-type clamscan cors helmet lodash chalk
 ```
 
 ## ⚙️ **Environment Setup**
@@ -115,7 +117,35 @@ UPLOAD_DIR=./uploads
 CLAMAV_PATH=/usr/bin/clamscan
 ```
 
-## 📖 **API Documentation**
+## �️ **Rate Limiting Protection**
+
+The application includes comprehensive brute force protection through express-rate-limit middleware:
+
+### **General API Rate Limiting**
+- **Limit**: 100 requests per 15 minutes per IP address
+- **Scope**: All `/api/*` routes
+- **Purpose**: Prevents API abuse and DoS attacks
+
+### **Login Protection**
+- **Limit**: 5 login attempts per 15 minutes per IP address
+- **Scope**: All `/api/users/*` routes (login, register, etc.)
+- **Smart Counting**: Only failed attempts count against the limit
+- **Auto-Reset**: Counters automatically reset every 15 minutes
+
+### **Response Headers**
+- `RateLimit-Limit`: Maximum requests allowed
+- `RateLimit-Remaining`: Requests remaining in current window
+- `RateLimit-Reset`: Reset time for the current window
+
+### **Error Response Example**
+```json
+{
+  "error": "Too many login attempts from this IP, please try again after 15 minutes.",
+  "retryAfter": "15 minutes"
+}
+```
+
+## �📖 **API Documentation**
 
 ### **Base URL**: `http://localhost:3001/api`
 
@@ -717,11 +747,110 @@ mongod
 ```
 
 ### **2. Seed Database** *(Optional)*
+
+#### **Quick Seeding**
 ```bash
 cd server
 node src/seeds/userSeeds.js
 node src/seeds/productSeeds.js
 ```
+
+#### **Comprehensive Test Data**
+```bash
+cd server
+npm run seed:full
+```
+
+**🎯 Comprehensive Seed Data Structure:**
+
+This creates a complete test environment with:
+
+**👥 Users Created (9 total):**
+- **1 Admin**: `admin@company.com`
+- **3 Main Branch Managers:**
+  - `main1@company.com` (Tel Aviv Main - No children)
+  - `main2@company.com` (Jerusalem Main - 2 children)  
+  - `main3@company.com` (Haifa Main - 3 children)
+- **5 Child Branch Users:**
+  - `child2_1@company.com` (Jerusalem Branch A)
+  - `child2_2@company.com` (Jerusalem Branch B)
+  - `child3_1@company.com` (Haifa Branch A)
+  - `child3_2@company.com` (Haifa Branch B)
+  - `child3_3@company.com` (Haifa Branch C)
+
+**🛍️ Products Created (35 total):**
+- **Tel Aviv Main Branch**: 5 products
+- **Jerusalem Main + Children**: 15 products (5 per branch)
+- **Haifa Children Branches**: 15 products (5 per branch)
+
+**🔐 Login Credentials:**
+- **Password for ALL users**: `Password123!`
+- **Categories**: Electronics, Clothing, Books, Home & Garden, Sports, Toys, Beauty, Food & Beverage, Automotive, Health
+- **Realistic Data**: Israeli cities, varied suppliers, random quantities (50-250 per product)
+
+### **🎯 Test User Accounts**
+
+#### **👑 Admin Account**
+- **Email**: `admin@company.com`
+- **Password**: `Password123!`
+- **Role**: `admin`
+- **Access**: Full system access, user management, global statistics
+
+#### **🏢 Main Branch Managers**
+
+**1. Tel Aviv Main Branch (No Children)**
+- **Email**: `main1@company.com`
+- **Password**: `Password123!`
+- **Role**: `main_brunch`
+- **Branch**: Tel Aviv Main Branch
+- **Products**: 5 products
+- **Children**: None
+
+**2. Jerusalem Main Branch (2 Children)**
+- **Email**: `main2@company.com`  
+- **Password**: `Password123!`
+- **Role**: `main_brunch`
+- **Branch**: Jerusalem Main Branch
+- **Products**: 15 products total (5 + 5 + 5)
+- **Children**: 2 child branches
+
+**3. Haifa Main Branch (3 Children)**
+- **Email**: `main3@company.com`
+- **Password**: `Password123!`
+- **Role**: `main_brunch`
+- **Branch**: Haifa Main Branch  
+- **Products**: 15 products total (3×5)
+- **Children**: 3 child branches
+
+#### **🌿 Child Branch Users**
+
+**Jerusalem Child Branches**
+- **Email**: `child2_1@company.com` | **Password**: `Password123!` | **Branch**: Jerusalem Branch A | **Products**: 5
+- **Email**: `child2_2@company.com` | **Password**: `Password123!` | **Branch**: Jerusalem Branch B | **Products**: 5
+
+**Haifa Child Branches**  
+- **Email**: `child3_1@company.com` | **Password**: `Password123!` | **Branch**: Haifa Branch A | **Products**: 5
+- **Email**: `child3_2@company.com` | **Password**: `Password123!` | **Branch**: Haifa Branch B | **Products**: 5
+- **Email**: `child3_3@company.com` | **Password**: `Password123!` | **Branch**: Haifa Branch C | **Products**: 5
+
+**📊 Test Scenarios Enabled:**
+- Admin managing all branches (`admin@company.com`)
+- Main branch managers with different hierarchies:
+  - Single branch operation (`main1@company.com`)
+  - Managing 2 child branches (`main2@company.com`) 
+  - Managing 3 child branches (`main3@company.com`)
+- Child branch operations and restrictions (`child2_1@company.com`, etc.)
+- Product statistics across multiple time periods
+- Role-based access control testing
+- Branch comparison analytics  
+- Quantity history tracking
+
+**💡 Quick Test Tips:**
+- Login as admin to see full system capabilities
+- Login as `main2@company.com` to test 2-child hierarchy
+- Login as `main3@company.com` to test 3-child hierarchy  
+- Login as any child user to see restricted access
+- All passwords are `Password123!`
 
 ### **3. Start Server**
 ```bash
