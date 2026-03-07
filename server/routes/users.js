@@ -10,6 +10,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const { logAuthEvent } = require('../src/middleware/logging');
 const router = express.Router();
 
 /**
@@ -30,7 +31,7 @@ const checkRegisterBody = joi.object({
  * POST /api/users/register
  * Creates new user account with hashed password and returns JWT token
  */
-router.post("/register", async (req,res) => {
+router.post("/register", logAuthEvent('register'), async (req,res) => {
     try {
         // Validate request body using Joi schema
         const { error } = checkRegisterBody.validate(req.body);
@@ -78,7 +79,7 @@ const checkLoginBody = joi.object({
  * POST /api/users/login
  * Authenticates user and returns JWT token
  */
-router.post("/login", async (req,res) => {
+router.post("/login", logAuthEvent('login'), async (req,res) => {
     try {
         // 1. Validate request body with Joi
         const {error} = checkLoginBody.validate(req.body);

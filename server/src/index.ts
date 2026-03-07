@@ -8,6 +8,10 @@ import path from 'path';
 // Import route handlers
 const userRoutes = require('../routes/users');  // User authentication and management routes
 const productRoutes = require('../routes/products');  // Product management and statistics routes
+const logRoutes = require('../routes/logs');  // Logging and analytics routes
+
+// Import middleware
+const { requestLogger, errorLogger } = require('./middleware/logging');
 
 // Import database configuration
 import { connectDB } from './config/database';
@@ -51,6 +55,12 @@ app.use(express.json());  // Parse JSON request bodies
 app.use(express.urlencoded({ extended: true }));  // Parse URL-encoded request bodies
 
 /**
+ * Request Logging Middleware
+ * Automatically logs all API requests with business intelligence
+ */
+app.use('/api', requestLogger());
+
+/**
  * Static File Serving
  * Serve uploaded product images at /api/images endpoint
  */
@@ -61,6 +71,7 @@ app.use('/api/images', express.static(path.resolve(__dirname, '../uploads')));
  */
 app.use('/api/users', userRoutes);      // User authentication and profile routes
 app.use('/api/products', productRoutes); // Product management and statistics routes
+app.use('/api/logs', logRoutes);         // Logging and analytics routes
 
 /**
  * Health Check Endpoint
@@ -74,6 +85,12 @@ app.get('/api/health', (req, res) => {
     version: '1.0.0'
   });
 });
+
+/**
+ * Error Logging Middleware
+ * Logs all errors before handling them
+ */
+app.use(errorLogger);
 
 /**
  * Global Error Handler

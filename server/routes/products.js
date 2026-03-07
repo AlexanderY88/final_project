@@ -11,6 +11,7 @@ const Product = require('../src/models/Product');
 const { uploadWithSecurity } = require('../src/middleware/fileUpload');
 const authMiddleware = require('../src/middleware/auth');
 const { recordQuantityChange } = require('../src/utils/quantityHistory');
+const { logProductOperation, logQuantityChange } = require('../src/middleware/logging');
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
@@ -46,7 +47,7 @@ const checkProductBody = joi.object({
  * Available to: admin, main_brunch, user (child branches)
  * Security features: File type validation, virus scanning, size limits, filename sanitization
  */
-router.post('/create', authMiddleware, uploadWithSecurity, async (req, res) => {
+router.post('/create', authMiddleware, logProductOperation('create'), uploadWithSecurity, async (req, res) => {
     try {
         // File upload and security validation already handled by uploadWithSecurity middleware
         console.log('🛡️  File upload and security validation completed');
