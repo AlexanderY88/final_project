@@ -1,0 +1,132 @@
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import helmet from 'helmet';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Import route handlers
+const userRoutes = require('../routes/users');  // User authentication and management routes
+const productRoutes = require('../routes/products');  // Product management and statistics routes
+
+// Import database configuration
+import { connectDB } from './config/database';
+
+/**
+ * Environment Configuration Setup
+ * Loads environment variables based on NODE_ENV
+ * Falls back to default .env if specific environment file doesn't exist
+ */
+const envFile = process.env.NODE_ENV === 'production' 
+  ? '.env.production' 
+  : '.env.development';
+
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+
+// Fallback to .env if specific environment file doesn't exist
+if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'development') {
+  dotenv.config();
+}
+
+// Initialize Express application
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+/**
+ * Security and CORS Middleware Configuration
+ */
+// Helmet: Sets various HTTP headers for security
+app.use(helmet());
+
+// CORS: Configure cross-origin resource sharing
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',  // Allow frontend URL
+  credentials: true  // Allow cookies and credentials
+}));
+
+/**
+ * Request Parsing Middleware
+ */
+app.use(express.json());  // Parse JSON request bodies
+app.use(express.urlencoded({ extended: true }));  // Parse URL-encoded request bodies
+
+/**
+ * Static File Serving
+ * Serve uploaded product images at /api/images endpoint
+ */
+app.use('/api/images', express.static(path.resolve(__dirname, '../uploads')));
+
+/**
+ * API Route Configuration
+ */
+app.use('/api/users', userRoutes);      // User authentication and profile routes
+app.use('/api/products', productRoutes); // Product management and statistics routes
+
+/**
+ * Health Check Endpoint
+ * Provides server status and basic information
+ */
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    message: 'Server is running!',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
+/**
+ * Global Error Handler
+ * Catches unhandled errors and sends appropriate responses
+ */
+app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('❌ Unhandled Error:', error);
+  
+  const statusCode = error.statusCode || 500;
+  const message = error.message || 'Internal Server Error';
+  
+  res.status(statusCode).json({
+    message: message,
+    ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+  });
+});
+
+/**
+ * 404 Handler
+ * Handle requests to non-existent endpoints
+ */
+app.use('*', (req, res) => {
+  res.status(404).json({
+    message: 'Endpoint not found',
+    path: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
+ * Server Startup Function
+ * Connects to database and starts the Express server
+ */
+const startServer = async () => {
+  try {
+    // Connect to MongoDB database
+    await connectDB();
+    
+    // Start Express server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 API Health: http://localhost:${PORT}/api/health`);
+      console.log(`📁 Static files: http://localhost:${PORT}/api/images`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Start the server
+startServer();
+
+export default app;
