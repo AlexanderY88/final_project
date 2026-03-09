@@ -1,6 +1,6 @@
-import { IProduct } from '../models/Product';
+const Product = require('../models/Product');
 
-export const seedProducts = async (): Promise<Partial<IProduct>[]> => {
+export const seedProducts = async (): Promise<any[]> => {
   return [
     {
       product: {

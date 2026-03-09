@@ -8,15 +8,12 @@ const express = require('express');
 const joi = require('joi');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const authMiddleware = require('../middleware/auth');
+const User = require('../src/models/User');
+const authMiddleware = require('../src/middleware/auth');
 const { logAuthEvent } = require('../src/middleware/logging');
 const router = express.Router();
 
-/**
- * Joi Schema for User Registration
- * Validates user registration data with password strength requirements
- */
+// Joi Schema for User Registration
 const checkRegisterBody = joi.object({
     firstName: joi.string().required(),
     lastName: joi.string().required(), 
@@ -26,11 +23,7 @@ const checkRegisterBody = joi.object({
     role: joi.string().valid('user', 'main_brunch', 'admin').default('user'),
 });
 
-/**
- * User Registration Route
- * POST /api/users/register
- * Creates new user account with hashed password and returns JWT token
- */
+// User Registration Route - POST /api/users/register
 router.post("/register", logAuthEvent('register'), async (req,res) => {
     try {
         // Validate request body using Joi schema
@@ -65,20 +58,13 @@ router.post("/register", logAuthEvent('register'), async (req,res) => {
     }
 });
 
-/**
- * Joi Schema for User Login
- * Validates login credentials
- */
+// Joi Schema for User Login
 const checkLoginBody = joi.object({
     email: joi.string().email().required().min(5),
     password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/)
 });
 
-/**
- * User Login Route
- * POST /api/users/login
- * Authenticates user and returns JWT token
- */
+// User Login Route - POST /api/users/login
 router.post("/login", logAuthEvent('login'), async (req,res) => {
     try {
         // 1. Validate request body with Joi
@@ -106,12 +92,7 @@ router.post("/login", logAuthEvent('login'), async (req,res) => {
     }
 });
 
-/**
- * Update User Profile Route
- * PUT /api/users/update-profile/:id
- * Updates user profile with role-based permissions
- * Requires authentication
- */
+// Update User Profile Route - PUT /api/users/update-profile/:id
 router.put("/update-profile/:id", authMiddleware, async (req,res) => {
     try {
         const { id } = req.params;
@@ -146,13 +127,7 @@ router.put("/update-profile/:id", authMiddleware, async (req,res) => {
     }
 });
 
-/**
- * Helper Function: Check Update Permissions
- * Determines if current user can update target user based on role hierarchy
- * @param {Object} currentUser - The authenticated user making the request
- * @param {Object} targetUser - The user to be updated
- * @returns {Object} - { allowed: boolean, reason: string }
- */
+// Helper: Check Update Permissions
 async function checkUpdatePermissions(currentUser, targetUser) {
     // Admin can update anyone
     if (currentUser.role === 'admin') {
@@ -189,12 +164,7 @@ async function checkUpdatePermissions(currentUser, targetUser) {
     return { allowed: false, reason: "Invalid user role" };
 }
 
-/**
- * Delete User Account Route
- * DELETE /api/users/:id
- * Deletes user account with role-based permissions and cascade handling
- * Requires authentication
- */
+// Delete User Account Route - DELETE /api/users/:id
 router.delete("/:id", authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
@@ -233,13 +203,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * Helper Function: Check Delete Permissions
- * Determines if current user can delete target user based on role hierarchy
- * @param {Object} currentUser - The authenticated user making the request
- * @param {Object} targetUser - The user to be deleted
- * @returns {Object} - { allowed: boolean, reason: string }
- */
+// Helper: Check Delete Permissions
 async function checkDeletePermissions(currentUser, targetUser) {
     // Admin can delete anyone except themselves (prevent lockout)
     if (currentUser.role === 'admin') {
@@ -284,11 +248,7 @@ async function checkDeletePermissions(currentUser, targetUser) {
     return { allowed: false, reason: "Invalid user role" };
 }
 
-/**
- * Helper Function: Handle Cascade Deletion
- * Manages related data when deleting users (especially main branch managers)
- * @param {Object} targetUser - The user being deleted
- */
+// Helper: Handle Cascade Deletion
 async function handleCascadeDeletion(targetUser) {
     // If deleting a main branch, delete all child branches
     if (targetUser.role === 'main_brunch') {
@@ -311,12 +271,7 @@ async function handleCascadeDeletion(targetUser) {
     }
 }
 
-/**
- * Get User by ID Route
- * GET /api/users/:id
- * Retrieves user information with role-based access control
- * Requires authentication
- */
+// Get User by ID Route - GET /api/users/:id
 router.get("/:id", authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
@@ -342,13 +297,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * Helper Function: Check View Permissions
- * Determines if current user can view target user's information
- * @param {Object} currentUser - The authenticated user making the request
- * @param {Object} targetUser - The user whose information is being accessed
- * @returns {Object} - { allowed: boolean, reason: string }
- */
+// Helper: Check View Permissions
 async function checkViewPermissions(currentUser, targetUser) {
     // Admin can view anyone
     if (currentUser.role === 'admin') {
@@ -373,12 +322,7 @@ async function checkViewPermissions(currentUser, targetUser) {
     return { allowed: false, reason: "Access denied" };
 } 
 
-/**
- * Get Current User Profile Route
- * GET /api/users/profile
- * Retrieves authenticated user's own profile information
- * Requires authentication
- */
+// Get Current User Profile Route - GET /api/users/profile
 router.get("/profile", authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
@@ -397,12 +341,7 @@ router.get("/profile", authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * Get Child Branches Route
- * GET /api/users/child-brunches
- * Returns all child branches for main_brunch users or all users for admin
- * Requires authentication
- */
+// Get Child Branches Route - GET /api/users/child-brunches
 router.get("/child-brunches", authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
@@ -445,10 +384,7 @@ router.get("/child-brunches", authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * Joi Schema for Child Branch Creation
- * Validates child branch user data
- */
+// Joi Schema for Child Branch Creation
 const checkChildBrunchBody = joi.object({
     firstName: joi.string().required(),
     lastName: joi.string().required(), 
@@ -457,12 +393,7 @@ const checkChildBrunchBody = joi.object({
     mainBrunchId: joi.string().optional() // Required when admin creates child brunch
 });
 
-/**
- * Create Child Branch Route
- * POST /api/users/create-child-brunch
- * Creates a new user under main_brunch manager or admin assignment
- * Requires authentication and appropriate role permissions
- */
+// Create Child Branch Route - POST /api/users/create-child-brunch
 
 router.post("/create-child-brunch", authMiddleware, async (req, res) => {
     try {
@@ -555,8 +486,4 @@ router.post("/create-child-brunch", authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * Export Router
- * Makes all user routes available for the main application
- */
 module.exports = router;

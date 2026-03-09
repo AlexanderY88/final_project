@@ -1,23 +1,7 @@
-/**
- * Product Model Schema
- * Mongoose schema for product inventory management
- * 
- * Features:
- * - Nested product information (title, subtitle, description)
- * - Supplier and category tracking
- * - Dual image system supporting both file uploads and external URLs
- * - Complete address information for branch location tracking
- * - Quantity management with history tracking
- * - Audit fields for creation and modification tracking
- * - Security validation metadata for uploaded files
- */
-
+// Product Model Schema - Mongoose schema for product inventory management
 const mongoose = require("mongoose");
 
-/**
- * Product Schema Definition
- * Comprehensive product data structure with dual image support and audit trail
- */
+// Product Schema Definition - Comprehensive product data structure
 const productSchema = new mongoose.Schema({
 
     // Product Core Information

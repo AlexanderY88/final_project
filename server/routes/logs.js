@@ -1,25 +1,10 @@
-/**
- * Logs Management and Analytics Routes
- * Provides access to structured logs and business intelligence
- * 
- * Features:
- * - View logs by type, date, and hour
- * - Business analytics and reporting
- * - Performance metrics
- * - User activity monitoring
- * - Product operation insights
- */
-
+// Logs Management and Analytics Routes
 const express = require('express');
 const loggingService = require('../src/services/LoggingService');
 const authMiddleware = require('../src/middleware/auth');
 const router = express.Router();
 
-/**
- * Get Logs by Type and Date/Hour
- * GET /api/logs/:type/:date/:hour?
- * Available types: api, products, errors, auth
- */
+// Get Logs by Type and Date/Hour - GET /api/logs/:type/:date/:hour?
 router.get('/:type/:date/:hour?', authMiddleware, async (req, res) => {
     try {
         const { type, date, hour } = req.params;
@@ -87,10 +72,7 @@ router.get('/:type/:date/:hour?', authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * Get Business Analytics for a Date
- * GET /api/logs/analytics/:date
- */
+// Get Business Analytics for a Date - GET /api/logs/analytics/:date
 router.get('/analytics/:date', authMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
@@ -134,11 +116,7 @@ router.get('/analytics/:date', authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * Search Logs with Filters
- * POST /api/logs/search
- * Body: { logType, dateFrom, dateTo, filters: { userId, branchId, statusCode, operation } }
- */
+// Search Logs with Filters - POST /api/logs/search
 router.post('/search', authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
@@ -212,10 +190,7 @@ router.post('/search', authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * Get Recent Error Summary
- * GET /api/logs/errors/summary
- */
+// Get Recent Error Summary - GET /api/logs/errors/summary
 router.get('/errors/summary', authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;

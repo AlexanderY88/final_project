@@ -1,10 +1,4 @@
-/**
- * Product Management Routes
- * Handles product CRUD operations, secure file uploads, and statistics
- * Supports role-based access control and dual image system (upload + URL)
- * Includes advanced statistics with flexible time periods
- */
-
+// Product Management Routes - CRUD operations with security
 const express = require('express');
 const joi = require('joi');
 const Product = require('../src/models/Product');
@@ -16,10 +10,7 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 
-/**
- * Joi Schema for Product Validation
- * Validates product data including address fields and dual image support
- */
+// Joi Schema for Product Validation
 const checkProductBody = joi.object({
     title: joi.string().required().min(2).max(100),
     subtitle: joi.string().optional().max(200),
@@ -40,13 +31,7 @@ const checkProductBody = joi.object({
     imageType: joi.string().valid('upload', 'url').optional() // Specify image type
 });
 
-/**
- * Create New Product Route
- * POST /api/products/create
- * Creates a new product with secure image upload capabilities
- * Available to: admin, main_brunch, user (child branches)
- * Security features: File type validation, virus scanning, size limits, filename sanitization
- */
+// Create Product Route - POST /api/products/create
 router.post('/create', authMiddleware, logProductOperation('create'), uploadWithSecurity, async (req, res) => {
     try {
         // File upload and security validation already handled by uploadWithSecurity middleware

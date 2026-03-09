@@ -3,8 +3,8 @@ import chalk from 'chalk';
 import dotenv from 'dotenv';
 import path from 'path';
 import { connectForSeeding, disconnectDB } from '../config/database';
-import User from '../models/User';
-import Product from '../models/Product';
+const User = require('../models/User');
+const Product = require('../models/Product');
 import { seedUsers } from './userSeeds';
 import { seedProducts } from './productSeeds';
 

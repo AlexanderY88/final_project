@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { IUser } from '../models/User';
+const User = require('../models/User');
 
 interface JwtPayload {
   userId: string;
@@ -7,7 +7,7 @@ interface JwtPayload {
   role: string;
 }
 
-export const generateToken = (user: IUser): string => {
+export const generateToken = (user: any): string => {
   const payload: JwtPayload = {
     userId: user._id.toString(),
     email: user.email,

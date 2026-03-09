@@ -16,9 +16,25 @@
 
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
-const User = require('../src/models/User');
-const Product = require('../src/models/Product');
-const { connectDB } = require('../src/config/database');
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load environment variables
+// Support both development and production environments
+const envFile = process.env.NODE_ENV === 'production' 
+    ? path.resolve(process.cwd(), '.env.production')
+    : path.resolve(process.cwd(), '.env.development');
+
+dotenv.config({ path: envFile });
+
+// If specific env file doesn't exist, try default .env
+if (!process.env.MONGODB_URI && !process.env.MONGODB_URI_LOCAL) {
+    dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+}
+
+// Now require models and config
+const User = require('../models/User');
+const Product = require('../models/Product');
 
 // Sample categories for realistic product distribution
 const CATEGORIES = [
@@ -135,6 +151,41 @@ function getProductNames(category) {
 }
 
 /**
+ * Helper function to create complete address object
+ */
+function createAddress(city, street, houseNumber, zip) {
+    return {
+        city,
+        country: 'Israel',
+        street,
+        houseNumber,
+        zip
+    };
+}
+
+/**
+ * Connect to MongoDB for seeding
+ */
+async function connectForSeeding() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const mongoURI = isProduction 
+        ? process.env.MONGODB_URI 
+        : (process.env.MONGODB_URI_LOCAL || 'mongodb://localhost:27017/the_storage');
+    
+    if (!mongoURI) {
+        throw new Error('MongoDB URI not found in environment variables');
+    }
+    
+    await mongoose.connect(mongoURI, {
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+    });
+    
+    console.log(`✅ Connected to MongoDB: ${mongoose.connection.db?.databaseName}`);
+}
+
+/**
  * Main seeding function
  */
 async function seedDatabase() {
@@ -142,7 +193,7 @@ async function seedDatabase() {
         console.log('🌱 Starting database seeding...');
         
         // Connect to database
-        await connectDB();
+        await connectForSeeding();
         
         // Clear existing data
         console.log('🗑️  Clearing existing data...');
@@ -157,12 +208,21 @@ async function seedDatabase() {
         
         // 1. Create Admin User
         const admin = new User({
-            firstName: 'Alexander',
-            lastName: 'Admin',
+            name: {
+                first: 'Alexander',
+                last: 'Admin'
+            },
+            phone: '+972-50-1234567',
             email: 'admin@company.com',
             password: hashedPassword,
+            address: {
+                city: 'Tel Aviv',
+                country: 'Israel',
+                street: 'Rothschild Blvd',
+                houseNumber: 1,
+                zip: 12345
+            },
             role: 'admin',
-            brunches: [],
             createdAt: new Date()
         });
         await admin.save();
@@ -170,12 +230,15 @@ async function seedDatabase() {
         
         // 2. Create Main Branch 1 (No children)
         const mainBranch1 = new User({
-            firstName: 'David',
-            lastName: 'Cohen',
+            name: {
+                first: 'David',
+                last: 'Cohen'
+            },
+            phone: '+972-52-1234567',
             email: 'main1@company.com',
             password: hashedPassword,
+            address: createAddress('Tel Aviv', 'Ben Yehuda St', 12, 65432),
             role: 'main_brunch',
-            brunches: ['branch_tlv_001'],
             branchName: 'Tel Aviv Main Branch',
             createdAt: new Date()
         });
@@ -184,12 +247,15 @@ async function seedDatabase() {
         
         // 3. Create Main Branch 2 (2 children)
         const mainBranch2 = new User({
-            firstName: 'Sarah',
-            lastName: 'Levi',
+            name: {
+                first: 'Sarah',
+                last: 'Levi'
+            },
+            phone: '+972-53-1234567',
             email: 'main2@company.com',
             password: hashedPassword,
+            address: createAddress('Jerusalem', 'King George St', 15, 91234),
             role: 'main_brunch',
-            brunches: ['branch_jlm_001'],
             branchName: 'Jerusalem Main Branch',
             createdAt: new Date()
         });
@@ -198,12 +264,15 @@ async function seedDatabase() {
         
         // 4. Create Main Branch 3 (3 children)
         const mainBranch3 = new User({
-            firstName: 'Michael',
-            lastName: 'Goldberg',
+            name: {
+                first: 'Michael',
+                last: 'Goldberg'
+            },
+            phone: '+972-54-1234567',
             email: 'main3@company.com',
             password: hashedPassword,
+            address: createAddress('Haifa', 'Carmel Ave', 25, 34567),
             role: 'main_brunch',
-            brunches: ['branch_hfa_001'],
             branchName: 'Haifa Main Branch',
             createdAt: new Date()
         });
@@ -212,24 +281,30 @@ async function seedDatabase() {
         
         // 5. Create Child Branches for Main Branch 2 (2 children)
         const childBranch2_1 = new User({
-            firstName: 'Rachel',
-            lastName: 'Stern',
+            name: {
+                first: 'Rachel',
+                last: 'Stern'
+            },
+            phone: '+972-55-1234567',
             email: 'child2_1@company.com',
             password: hashedPassword,
+            address: createAddress('Jerusalem', 'Hillel St', 20, 91567),
             role: 'user',
-            brunches: ['branch_jlm_001'],
             branchName: 'Jerusalem Branch A',
             createdAt: new Date()
         });
         await childBranch2_1.save();
         
         const childBranch2_2 = new User({
-            firstName: 'Amit',
-            lastName: 'Rosen',
+            name: {
+                first: 'Amit',
+                last: 'Rosen'
+            },
+            phone: '+972-56-1234567',
             email: 'child2_2@company.com',
             password: hashedPassword,
+            address: createAddress('Jerusalem', 'Jaffa Rd', 30, 91890),
             role: 'user',
-            brunches: ['branch_jlm_001'],
             branchName: 'Jerusalem Branch B',
             createdAt: new Date()
         });
@@ -238,36 +313,45 @@ async function seedDatabase() {
         
         // 6. Create Child Branches for Main Branch 3 (3 children)
         const childBranch3_1 = new User({
-            firstName: 'Yael',
-            lastName: 'Katz',
+            name: {
+                first: 'Yael',
+                last: 'Katz'
+            },
+            phone: '+972-57-1234567',
             email: 'child3_1@company.com',
             password: hashedPassword,
+            address: createAddress('Haifa', 'Herzl St', 40, 35123),
             role: 'user',
-            brunches: ['branch_hfa_001'],
             branchName: 'Haifa Branch A',
             createdAt: new Date()
         });
         await childBranch3_1.save();
         
         const childBranch3_2 = new User({
-            firstName: 'Oren',
-            lastName: 'Shapiro',
+            name: {
+                first: 'Oren',
+                last: 'Shapiro'
+            },
+            phone: '+972-58-1234567',
             email: 'child3_2@company.com',
             password: hashedPassword,
+            address: createAddress('Haifa', 'Palmach St', 50, 35456),
             role: 'user',
-            brunches: ['branch_hfa_001'],
             branchName: 'Haifa Branch B',
             createdAt: new Date()
         });
         await childBranch3_2.save();
         
         const childBranch3_3 = new User({
-            firstName: 'Noa',
-            lastName: 'Avraham',
+            name: {
+                first: 'Noa',
+                last: 'Avraham'
+            },
+            phone: '+972-59-1234567',
             email: 'child3_3@company.com',
             password: hashedPassword,
+            address: createAddress('Haifa', 'Balfour St', 60, 35789),
             role: 'user',
-            brunches: ['branch_hfa_001'],
             branchName: 'Haifa Branch C',
             createdAt: new Date()
         });

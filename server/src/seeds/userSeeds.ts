@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
-import { IUser } from '../models/User';
+const User = require('../models/User');
 
-export const seedUsers = async (): Promise<Partial<IUser>[]> => {
+export const seedUsers = async (): Promise<any[]> => {
   // Hash passwords for seed data
   const hashedPassword1 = await bcrypt.hash('password123', 12);
   const hashedPassword2 = await bcrypt.hash('admin123', 12);

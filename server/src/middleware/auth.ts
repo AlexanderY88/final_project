@@ -51,3 +51,4 @@ const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => 
 };
 
 export default authMiddleware;
+module.exports = authMiddleware;
