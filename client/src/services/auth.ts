@@ -1,71 +1,48 @@
-import { apiService } from './api';
-import { LoginCredentials, RegisterData, User, ApiResponse } from '../types/auth';
+import api from './api';
+import { LoginCredentials, RegisterData, User } from '../types/auth';
 
-export interface AuthResponse {
-  user: User;
-  token: string;
-}
+export const login = async (credentials: LoginCredentials) => {
+  // Server returns a raw JWT token string
+  const { data: token } = await api.post('/users/login', credentials);
+  localStorage.setItem('token', token);
 
-class AuthService {
-  async login(credentials: LoginCredentials): Promise<ApiResponse<AuthResponse>> {
-    try {
-      const response = await apiService.post<ApiResponse<AuthResponse>>('/users/login', credentials);
-      
-      if (response.success && response.data) {
-        // Store token and user in localStorage
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-      }
-      
-      return response;
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Login failed');
-    }
-  }
+  // Fetch full user profile
+  const { data: user } = await api.get('/users/profile');
+  localStorage.setItem('user', JSON.stringify(user));
 
-  async register(userData: RegisterData): Promise<ApiResponse<AuthResponse>> {
-    try {
-      const response = await apiService.post<ApiResponse<AuthResponse>>('/users/register', userData);
-      
-      if (response.success && response.data) {
-        // Store token and user in localStorage
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-      }
-      
-      return response;
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Registration failed');
-    }
-  }
+  return { user, token };
+};
 
-  async getProfile(): Promise<ApiResponse<{ user: User }>> {
-    try {
-      return await apiService.get<ApiResponse<{ user: User }>>('/users/profile');
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Failed to get profile');
-    }
-  }
+export const register = async (userData: RegisterData) => {
+  const { data: token } = await api.post('/users/register', userData);
+  localStorage.setItem('token', token);
 
-  logout(): void {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-  }
+  const { data: user } = await api.get('/users/profile');
+  localStorage.setItem('user', JSON.stringify(user));
 
-  getStoredToken(): string | null {
-    return localStorage.getItem('token');
-  }
+  return { user, token };
+};
 
-  getStoredUser(): User | null {
-    const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
-  }
+export const getProfile = async (): Promise<User> => {
+  const { data } = await api.get('/users/profile');
+  localStorage.setItem('user', JSON.stringify(data));
+  return data;
+};
 
-  isAuthenticated(): boolean {
-    const token = this.getStoredToken();
-    const user = this.getStoredUser();
-    return !!(token && user);
-  }
-}
+export const logout = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
 
-export const authService = new AuthService();
+export const getStoredToken = (): string | null => {
+  return localStorage.getItem('token');
+};
+
+export const getStoredUser = (): User | null => {
+  const str = localStorage.getItem('user');
+  return str ? JSON.parse(str) : null;
+};
+
+export const isAuthenticated = (): boolean => {
+  return !!(getStoredToken() && getStoredUser());
+};

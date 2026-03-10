@@ -1,9 +1,27 @@
 export interface User {
   _id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  role: 'user' | 'admin';
+  name: {
+    first: string;
+    middle?: string;
+    last: string;
+  };
+  phone: string;
+  image?: {
+    url?: string;
+    alt?: string;
+  };
+  address: {
+    state?: string;
+    country: string;
+    city: string;
+    street: string;
+    houseNumber: number;
+    zip: number;
+  };
+  isMainBrunch: boolean;
+  isAdmin: boolean;
+  brunches?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -26,11 +44,5 @@ export interface RegisterData {
   password: string;
   firstName: string;
   lastName: string;
-}
-
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data?: T;
-  errors?: any[];
+  role?: string;
 }

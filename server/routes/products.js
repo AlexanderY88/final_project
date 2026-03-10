@@ -121,12 +121,12 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
             return res.status(400).json({ message: "Image URL is required when imageType is 'url'" });
         }
         
-        // Add creator information for audit trail and tracking
+        // Add creator information
         productData.createdBy = {
             userId: currentUser._id,
-            username: currentUser.first_name + ' ' + currentUser.last_name,
+            username: currentUser.firstName + ' ' + currentUser.lastName,
             role: currentUser.role,
-            branchName: currentUser.branchName || 'Main Branch'
+            branchName: currentUser.firstName + "'s Branch"
         };
         
         // Create and save new product to database
@@ -147,9 +147,9 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
                 changeType: 'initial_creation',
                 changedBy: {
                     userId: currentUser._id,
-                    username: currentUser.first_name + ' ' + currentUser.last_name,
+                    username: currentUser.firstName + ' ' + currentUser.lastName,
                     role: currentUser.role,
-                    branchName: currentUser.branchName || 'Main Branch'
+                    branchName: currentUser.firstName + "'s Branch"
                 },
                 notes: 'Initial product creation'
             });
@@ -363,9 +363,9 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
                     changeType: 'manual_update',
                     changedBy: {
                         userId: currentUser._id,
-                        username: currentUser.first_name + ' ' + currentUser.last_name,
+                        username: currentUser.firstName + ' ' + currentUser.lastName,
                         role: currentUser.role,
-                        branchName: currentUser.branchName || 'Main Branch'
+                        branchName: currentUser.firstName + "'s Branch"
                     },
                     notes: `Product updated: quantity changed from ${previousQuantity} to ${value.quantity}`
                 });
@@ -481,9 +481,9 @@ router.patch('/:id/quantity', authMiddleware, async (req, res) => {
                 changeType: 'manual_update',
                 changedBy: {
                     userId: currentUser._id,
-                    username: currentUser.first_name + ' ' + currentUser.last_name,
+                    username: currentUser.firstName + ' ' + currentUser.lastName,
                     role: currentUser.role,
-                    branchName: currentUser.branchName || 'Main Branch'
+                    branchName: currentUser.firstName + "'s Branch"
                 },
                 notes: `Quantity updated from ${previousQuantity} to ${quantity}`
             });
@@ -521,7 +521,7 @@ router.get('/branches/report', authMiddleware, async (req, res) => {
         const User = require('../src/models/User');
         
         // Find all child branch users (users with role 'user')
-        const childBranches = await User.find({ role: 'user' }).select('_id first_name last_name email branchName createdAt');
+        const childBranches = await User.find({ isAdmin: false, isMainBrunch: false }).select('_id name email phone createdAt');
         
         if (childBranches.length === 0) {
             return res.status(200).json({
@@ -555,8 +555,8 @@ router.get('/branches/report', authMiddleware, async (req, res) => {
                     return {
                         branchInfo: {
                             branchId: branch._id,
-                            branchName: branch.branchName || `${branch.first_name} ${branch.last_name}'s Branch`,
-                            managerName: `${branch.first_name} ${branch.last_name}`,
+                            branchName: `${branch.name.first} ${branch.name.last}'s Branch`,
+                            managerName: `${branch.name.first} ${branch.name.last}`,
                             email: branch.email,
                             createdAt: branch.createdAt
                         },
@@ -571,8 +571,8 @@ router.get('/branches/report', authMiddleware, async (req, res) => {
                     return {
                         branchInfo: {
                             branchId: branch._id,
-                            branchName: branch.branchName || `${branch.first_name} ${branch.last_name}'s Branch`,
-                            managerName: `${branch.first_name} ${branch.last_name}`,
+                            branchName: `${branch.name.first} ${branch.name.last}'s Branch`,
+                            managerName: `${branch.name.first} ${branch.name.last}`,
                             email: branch.email,
                             createdAt: branch.createdAt
                         },
@@ -857,10 +857,10 @@ router.get('/statistics/my-branch', authMiddleware, async (req, res) => {
         // Add user information to response
         const userInfo = {
             userId: currentUser._id,
-            username: `${currentUser.first_name} ${currentUser.last_name}`,
+            username: `${currentUser.firstName} ${currentUser.lastName}`,
             email: currentUser.email,
             role: currentUser.role,
-            branchName: currentUser.branchName || 'Personal Branch'
+            branchName: currentUser.firstName + "'s Branch"
         };
         
         res.status(200).json({

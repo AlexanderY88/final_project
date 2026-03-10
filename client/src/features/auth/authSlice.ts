@@ -1,8 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { authService } from '../../services/auth';
+import * as authService from '../../services/auth';
 import { AuthState, LoginCredentials, RegisterData, User } from '../../types/auth';
 
-// Initial state
 const initialState: AuthState = {
   user: authService.getStoredUser(),
   token: authService.getStoredToken(),
@@ -11,21 +10,13 @@ const initialState: AuthState = {
   isAuthenticated: authService.isAuthenticated(),
 };
 
-// Async thunks
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials, { rejectWithValue }) => {
     try {
-      const response = await authService.login(credentials);
-      if (response.success && response.data) {
-        return {
-          user: response.data.user,
-          token: response.data.token,
-        };
-      }
-      return rejectWithValue(response.message);
+      return await authService.login(credentials);
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Login failed');
+      return rejectWithValue(error.response?.data?.message || error.message || 'Login failed');
     }
   }
 );
@@ -34,16 +25,9 @@ export const register = createAsyncThunk(
   'auth/register',
   async (userData: RegisterData, { rejectWithValue }) => {
     try {
-      const response = await authService.register(userData);
-      if (response.success && response.data) {
-        return {
-          user: response.data.user,
-          token: response.data.token,
-        };
-      }
-      return rejectWithValue(response.message);
+      return await authService.register(userData);
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Registration failed');
+      return rejectWithValue(error.response?.data?.message || error.message || 'Registration failed');
     }
   }
 );
@@ -52,18 +36,13 @@ export const getProfile = createAsyncThunk(
   'auth/getProfile',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await authService.getProfile();
-      if (response.success && response.data) {
-        return response.data.user;
-      }
-      return rejectWithValue(response.message);
+      return await authService.getProfile();
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to get profile');
+      return rejectWithValue(error.response?.data?.message || error.message || 'Failed to get profile');
     }
   }
 );
 
-// Auth slice
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -85,7 +64,6 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Login
       .addCase(login.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -102,7 +80,6 @@ const authSlice = createSlice({
         state.error = action.payload as string;
         state.isAuthenticated = false;
       })
-      // Register
       .addCase(register.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -119,7 +96,6 @@ const authSlice = createSlice({
         state.error = action.payload as string;
         state.isAuthenticated = false;
       })
-      // Get Profile
       .addCase(getProfile.pending, (state) => {
         state.isLoading = true;
       })

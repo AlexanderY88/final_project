@@ -90,7 +90,19 @@ npm install
 ```bash
 # In server directory
 npm install express express-rate-limit mongoose jsonwebtoken bcryptjs joi multer file-type clamscan cors helmet lodash chalk
+
+# In client directory
+cd ../client
+npm install -D tailwindcss postcss autoprefixer
 ```
+
+### **4. Tailwind CSS Setup**
+Tailwind CSS is already configured with:
+- `tailwind.config.js` - Tailwind configuration
+- `postcss.config.js` - PostCSS configuration  
+- Tailwind directives in `src/index.css`
+
+The configuration scans all TypeScript and JavaScript files in the src directory for Tailwind classes.
 
 ## ⚙️ **Environment Setup**
 
@@ -953,12 +965,14 @@ final_project/
 ## 🚀 Technologies Used
 
 ### Frontend
-- **React 19** - UI library
+- **React 18** - UI library
 - **TypeScript** - Type safety
 - **Redux Toolkit** - State management
 - **React Router** - Client-side routing
 - **Axios** - HTTP client
-- **CSS3** - Styling
+- **Tailwind CSS** - Utility-first CSS framework
+- **PostCSS** - CSS processing
+- **Autoprefixer** - CSS vendor prefixing
 
 ### Backend
 - **Node.js** - Runtime environment
