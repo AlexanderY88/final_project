@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { fetchChildBranches, deleteUser } from '../features/users/usersSlice';
 import * as userService from '../services/users';
-import { User } from '../types/auth';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
 

@@ -10,7 +10,6 @@ const API_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://lo
 const Products: React.FC = () => {
   const dispatch = useAppDispatch();
   const { products, totalPages, totalProducts, isLoading, error } = useAppSelector(state => state.products);
-  const { user } = useAppSelector(state => state.auth);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
