@@ -321,7 +321,10 @@ class ProductStatisticsService {
             };
 
             // Add branch filter if specified
-            if (branchId) {
+            if (filterOptions.allowedBranchIds && filterOptions.allowedBranchIds.length > 0) {
+                // For main branches, filter by their list of managed branches
+                matchConditions['changedBy.userId'] = { $in: filterOptions.allowedBranchIds };
+            } else if (branchId) {
                 matchConditions['changedBy.userId'] = branchId;
             } else if (branchName) {
                 matchConditions['changedBy.branchName'] = branchName;

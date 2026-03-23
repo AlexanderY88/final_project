@@ -180,19 +180,34 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
     }
 });
 
-// Get all products (with pagination)
+// Get all products (with pagination and filtering)
 router.get('/', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        const limit = parseInt(req.query.limit) || 12;
         const skip = (page - 1) * limit;
         
-        const products = await Product.find()
+        const { search, category, supplier, minQty } = req.query;
+        let query = {};
+
+        if (search) {
+            query.$or = [
+                { "product.title": { $regex: search, $options: 'i' } },
+                { "product.subtitle": { $regex: search, $options: 'i' } },
+                { "product.description": { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        if (category) query.category = category;
+        if (supplier) query.supplier = supplier;
+        if (minQty) query.quantity = { $gte: parseInt(minQty) };
+
+        const products = await Product.find(query)
             .skip(skip)
             .limit(limit)
             .sort({ createdAt: -1 });
             
-        const total = await Product.countDocuments();
+        const total = await Product.countDocuments(query);
         
         res.status(200).json({
             products,
@@ -251,6 +266,24 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
                 });
             }
             return res.status(404).json({ message: "Product not found" });
+        }
+
+        // Ownership Check
+        if (currentUser.role !== 'admin') {
+            const productOwnerId = product.user_id ? product.user_id.toString() : null;
+            
+            if (currentUser.role === 'main_brunch') {
+                if (productOwnerId !== currentUser._id.toString() && 
+                    (!currentUser.brunches || !currentUser.brunches.includes(productOwnerId))) {
+                    if (req.file) fs.unlinkSync(req.file.path);
+                    return res.status(403).json({ message: "Access denied: You do not manage this branch" });
+                }
+            } else if (currentUser.role === 'user') {
+                if (productOwnerId !== currentUser._id.toString()) {
+                    if (req.file) fs.unlinkSync(req.file.path);
+                    return res.status(403).json({ message: "Access denied: You can only edit your own products" });
+                }
+            }
         }
         
         // Validate update data
@@ -409,6 +442,27 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         const product = await Product.findById(id);
         if (!product) {
             return res.status(404).json({ message: "Product not found" });
+        }
+
+        // Ownership Check: 
+        // Admin sees all. 
+        // Main branch sees their own and their child branches'.
+        // Child branch (user) only sees their own.
+        if (currentUser.role !== 'admin') {
+            const productOwnerId = product.user_id ? product.user_id.toString() : null;
+            
+            if (currentUser.role === 'main_brunch') {
+                // Main branch must be either the owner or the parent of the owner
+                if (productOwnerId !== currentUser._id.toString() && 
+                    (!currentUser.brunches || !currentUser.brunches.includes(productOwnerId))) {
+                    return res.status(403).json({ message: "Access denied: You do not manage this branch" });
+                }
+            } else if (currentUser.role === 'user') {
+                // Child branch must be the owner
+                if (productOwnerId !== currentUser._id.toString()) {
+                    return res.status(403).json({ message: "Access denied: You can only delete your own products" });
+                }
+            }
         }
         
         // Delete associated image file (only for uploaded files)
@@ -729,6 +783,22 @@ router.get('/statistics/branches/overview', authMiddleware, async (req, res) => 
             groupBy,
             includeProductDetails: includeProductDetailsBoolean
         };
+        
+        // Filter statistics for main_brunch users
+        if (currentUser.role === 'main_brunch' && currentUser.brunches) {
+            // Main branch can see their own activities plus those of their child branches
+            // Note: ProductStatisticsService.getBranchStatistics currently handles branchId filter if provided
+            // However, the /overview endpoint allows branchId=null to see 'all'.
+            // For a main_brunch, 'all' should mean 'all their branches'.
+            if (!filterOptions.branchId) {
+                // If no specific branch is requested, we need to handle the filtering
+                // We'll modify filterOptions to include the array of allowed IDs
+                filterOptions.allowedBranchIds = currentUser.brunches;
+            } else if (!currentUser.brunches.includes(filterOptions.branchId)) {
+                // If a specific branch is requested, it MUST be one of theirs
+                return res.status(403).json({ message: "Access denied: You can only view statistics for your own branches" });
+            }
+        }
         
         // Get statistics
         const statistics = await ProductStatisticsService.getBranchStatistics(filterOptions);

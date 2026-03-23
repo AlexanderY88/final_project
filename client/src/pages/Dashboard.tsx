@@ -40,6 +40,12 @@ const Dashboard: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Manage inventory & stock</p>
         </Link>
 
+        <Link to="/statistics" className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition text-center group">
+          <div className="text-4xl mb-3">📊</div>
+          <h3 className="font-semibold text-gray-800 group-hover:text-indigo-600 transition">Statistics</h3>
+          <p className="text-sm text-gray-500 mt-1">View inventory trends</p>
+        </Link>
+
         <Link to="/profile" className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition text-center group">
           <div className="text-4xl mb-3">👤</div>
           <h3 className="font-semibold text-gray-800 group-hover:text-indigo-600 transition">My Profile</h3>
@@ -59,6 +65,14 @@ const Dashboard: React.FC = () => {
             <div className="text-4xl mb-3">👥</div>
             <h3 className="font-semibold text-gray-800 group-hover:text-indigo-600 transition">All Users</h3>
             <p className="text-sm text-gray-500 mt-1">Admin user management</p>
+          </Link>
+        )}
+
+        {(user.isMainBrunch || user.isAdmin) && (
+          <Link to="/logs" className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition text-center group">
+            <div className="text-4xl mb-3">🎞️</div>
+            <h3 className="font-semibold text-gray-800 group-hover:text-indigo-600 transition">Activity Logs</h3>
+            <p className="text-sm text-gray-500 mt-1">Audit operational history</p>
           </Link>
         )}
       </div>

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '../app/hooks';
 import { getProfile } from '../features/auth/authSlice';
 import * as userService from '../services/users';
+import { toast } from 'react-toastify';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const Profile: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -10,6 +12,7 @@ const Profile: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -49,7 +52,13 @@ const Profile: React.FC = () => {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
+    if (!user) return;
+    setShowConfirm(true);
+  };
+
+  const handleConfirmSave = async () => {
+    setShowConfirm(false);
     if (!user) return;
     setSaving(true);
     setError('');
@@ -71,11 +80,14 @@ const Profile: React.FC = () => {
           zip: Number(form.zip),
         },
       });
+      toast.success('Profile updated successfully!');
       setMessage('Profile updated successfully!');
       setEditing(false);
       dispatch(getProfile()); // Refresh user data in Redux
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update profile');
+      const errorMsg = err.response?.data?.message || 'Failed to update profile';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -99,6 +111,14 @@ const Profile: React.FC = () => {
           {roleLabel}
         </span>
       </div>
+
+      <ConfirmationModal
+        isOpen={showConfirm}
+        title="Update Profile"
+        message="Are you sure you want to save the changes to your profile?"
+        onConfirm={handleConfirmSave}
+        onCancel={() => setShowConfirm(false)}
+      />
 
       {message && (
         <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg mb-4">{message}</div>

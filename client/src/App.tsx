@@ -9,11 +9,15 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import ProductForm from './pages/ProductForm';
+import Statistics from './pages/Statistics';
+import LogViewer from './pages/LogViewer';
 import Profile from './pages/Profile';
 import Branches from './pages/Branches';
 import AdminUsers from './pages/AdminUsers';
 import AboutUs from './pages/AboutUs';
 import ContactUs from './pages/ContactUs';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 
 function App() {
@@ -34,6 +38,8 @@ function App() {
             {/* Protected routes */}
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+            <Route path="/statistics" element={<ProtectedRoute><Statistics /></ProtectedRoute>} />
+            <Route path="/logs" element={<ProtectedRoute><LogViewer /></ProtectedRoute>} />
             <Route path="/products/new" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
             <Route path="/products/:id/edit" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -46,6 +52,7 @@ function App() {
           </Routes>
         </main>
         <Footer />
+        <ToastContainer position="bottom-right" autoClose={3000} />
       </div>
     </Router>
   );

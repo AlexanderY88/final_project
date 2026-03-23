@@ -109,7 +109,9 @@ const productsSlice = createSlice({
       })
       .addCase(createProduct.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.products.unshift(action.payload.product);
+        // The API returns { product: {...} } or the product object directly, adjust accordingly
+        const newProduct = action.payload.product || action.payload;
+        state.products.unshift(newProduct);
         state.totalProducts += 1;
       })
       .addCase(createProduct.rejected, (state, action) => {
@@ -118,8 +120,9 @@ const productsSlice = createSlice({
       })
       // Update product
       .addCase(updateProduct.fulfilled, (state, action) => {
-        const idx = state.products.findIndex(p => p._id === action.payload.product._id);
-        if (idx !== -1) state.products[idx] = action.payload.product;
+        const updatedProduct = action.payload.product || action.payload;
+        const idx = state.products.findIndex(p => p._id === updatedProduct._id);
+        if (idx !== -1) state.products[idx] = updatedProduct;
       })
       .addCase(updateProduct.rejected, (state, action) => {
         state.error = action.payload as string;

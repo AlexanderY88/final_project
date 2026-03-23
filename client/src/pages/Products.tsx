@@ -2,28 +2,48 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { fetchProducts, deleteProduct, updateQuantity } from '../features/products/productsSlice';
+import { toast } from 'react-toastify';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const API_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
 const Products: React.FC = () => {
   const dispatch = useAppDispatch();
   const { products, totalPages, totalProducts, isLoading, error } = useAppSelector(state => state.products);
+  const { user } = useAppSelector(state => state.auth);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     dispatch(fetchProducts({ page, limit: 12 }));
   }, [dispatch, page]);
 
   const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      dispatch(deleteProduct(id));
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteId) {
+      try {
+        await dispatch(deleteProduct(deleteId)).unwrap();
+        toast.success('Product deleted successfully');
+      } catch (err: any) {
+        toast.error(err || 'Failed to delete product');
+      } finally {
+        setDeleteId(null);
+      }
     }
   };
 
-  const handleQuantityChange = (id: string, currentQty: number, change: number) => {
+  const handleQuantityChange = async (id: string, currentQty: number, change: number) => {
     const newQty = Math.max(0, currentQty + change);
-    dispatch(updateQuantity({ id, quantity: newQty }));
+    try {
+      await dispatch(updateQuantity({ id, quantity: newQty })).unwrap();
+      toast.success(`Quantity updated to ${newQty}`);
+    } catch (err: any) {
+      toast.error(err || 'Failed to update quantity');
+    }
   };
 
   const getImageUrl = (product: any) => {
@@ -190,6 +210,14 @@ const Products: React.FC = () => {
           </button>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={!!deleteId}
+        title="Delete Product"
+        message="Are you sure you want to delete this product? This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 };

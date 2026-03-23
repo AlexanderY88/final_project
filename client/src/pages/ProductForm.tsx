@@ -4,6 +4,8 @@ import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { createProduct, updateProduct } from '../features/products/productsSlice';
 import * as productService from '../services/products';
 import { ProductFormData } from '../types/product';
+import { toast } from 'react-toastify';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const ProductForm: React.FC = () => {
   const { id } = useParams();
@@ -13,8 +15,10 @@ const ProductForm: React.FC = () => {
   const { user } = useAppSelector(state => state.auth);
 
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [form, setForm] = useState<ProductFormData>({
     title: '',
@@ -59,25 +63,48 @@ const ProductForm: React.FC = () => {
     }
   }, [id, isEdit]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setImageFile(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setImagePreview(null);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowConfirm(true);
+  };
+
+  const handleConfirmSave = async () => {
+    setShowConfirm(false);
     setLoading(true);
     setError('');
 
     try {
       if (isEdit && id) {
         await dispatch(updateProduct({ id, data: form, image: imageFile || undefined })).unwrap();
+        toast.success('Product updated successfully!');
       } else {
         await dispatch(createProduct({ data: form, image: imageFile || undefined })).unwrap();
+        toast.success('Product created successfully!');
       }
       navigate('/products');
     } catch (err: any) {
-      setError(typeof err === 'string' ? err : 'Failed to save product');
+      const errorMsg = typeof err === 'string' ? err : 'Failed to save product';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -174,6 +201,17 @@ const ProductForm: React.FC = () => {
         {/* Image Section */}
         <div className="border-t pt-5">
           <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
+          
+          {(imagePreview || (form.imageType === 'url' && form.imageUrl)) && (
+            <div className="mb-4 relative w-full h-48 bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
+              <img 
+                src={form.imageType === 'upload' ? imagePreview! : form.imageUrl} 
+                alt="Preview" 
+                className="w-full h-full object-contain"
+              />
+            </div>
+          )}
+
           <div className="flex gap-4 mb-3">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -203,7 +241,7 @@ const ProductForm: React.FC = () => {
               title="Upload product image"
               type="file"
               accept="image/jpeg,image/png,image/webp"
-              onChange={e => setImageFile(e.target.files?.[0] || null)}
+              onChange={handleFileChange}
               className="w-full border border-gray-300 rounded-lg px-3 py-2"
             />
           ) : (
@@ -274,6 +312,14 @@ const ProductForm: React.FC = () => {
           </button>
         </div>
       </form>
+
+      <ConfirmationModal
+        isOpen={showConfirm}
+        title={isEdit ? 'Update Product' : 'Create Product'}
+        message={`Are you sure you want to ${isEdit ? 'update' : 'create'} this product?`}
+        onConfirm={handleConfirmSave}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 };

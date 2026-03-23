@@ -1,37 +1,34 @@
 import React, { useState, useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../app/hooks';
+import { fetchAllUsers, deleteUser } from '../features/users/usersSlice';
 import * as userService from '../services/users';
 import { User } from '../types/auth';
+import { toast } from 'react-toastify';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const AdminUsers: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const data = await userService.getAllUsers();
-      setUsers(data);
-    } catch (err: any) {
-      setError('Failed to load users');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const dispatch = useAppDispatch();
+  const { users, isLoading, error: reduxError } = useAppSelector(state => state.users);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    dispatch(fetchAllUsers());
+  }, [dispatch]);
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-    try {
-      await userService.deleteUser(id);
-      setUsers(prev => prev.filter(u => u._id !== id));
-      setMessage('User deleted successfully');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete user');
+  const handleDelete = (id: string) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteId) {
+      try {
+        await dispatch(deleteUser(deleteId)).unwrap();
+        toast.success('User deleted successfully');
+      } catch (err: any) {
+        toast.error(err || 'Failed to delete user');
+      } finally {
+        setDeleteId(null);
+      }
     }
   };
 
@@ -40,10 +37,10 @@ const AdminUsers: React.FC = () => {
       const isAdmin = newRole === 'admin';
       const isMainBrunch = newRole === 'main_brunch';
       await userService.updateProfile(id, { isAdmin, isMainBrunch });
-      setMessage('Role updated successfully');
-      loadUsers();
+      toast.success('Role updated successfully');
+      dispatch(fetchAllUsers());
     } catch (err: any) {
-      setError('Failed to update role');
+      toast.error('Failed to update role');
     }
   };
 
@@ -65,7 +62,7 @@ const AdminUsers: React.FC = () => {
     return 'user';
   };
 
-  if (loading) {
+  if (isLoading && users.length === 0) {
     return (
       <div className="flex justify-center items-center py-20">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
@@ -80,11 +77,8 @@ const AdminUsers: React.FC = () => {
         <p className="text-sm text-gray-500">{users.length} users total</p>
       </div>
 
-      {message && (
-        <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg mb-4">{message}</div>
-      )}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-4">{error}</div>
+      {reduxError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-4">{reduxError}</div>
       )}
 
       {/* Users Table */}
@@ -104,7 +98,7 @@ const AdminUsers: React.FC = () => {
               {users.map(u => (
                 <tr key={u._id} className="hover:bg-gray-50 transition">
                   <td className="px-5 py-4">
-                    <p className="font-medium text-gray-800">{u.name.first} {u.name.last}</p>
+                    <p className="font-medium text-gray-800">{u.name?.first} {u.name?.last}</p>
                     <p className="text-xs text-gray-400">{u.address?.city}, {u.address?.country}</p>
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-600">{u.email}</td>
@@ -145,6 +139,14 @@ const AdminUsers: React.FC = () => {
           <p className="text-gray-500 text-lg">No users found</p>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={!!deleteId}
+        title="Delete User"
+        message="Are you sure you want to delete this user? All their products and data will be permanently removed."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 };

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../app/hooks';
+import { fetchChildBranches, deleteUser } from '../features/users/usersSlice';
 import * as userService from '../services/users';
 import { User } from '../types/auth';
+import { toast } from 'react-toastify';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const Branches: React.FC = () => {
-  const [branches, setBranches] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const dispatch = useAppDispatch();
+  const { childBranches: branches, isLoading, error: reduxError } = useAppSelector(state => state.users);
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -17,57 +20,45 @@ const Branches: React.FC = () => {
     password: '',
   });
 
-  const loadBranches = async () => {
-    try {
-      setLoading(true);
-      const data = await userService.getChildBranches();
-      setBranches(data.childBranches || []);
-    } catch (err: any) {
-      if (err.response?.status === 404) {
-        setBranches([]);
-      } else {
-        setError(err.response?.data?.message || 'Failed to load branches');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadBranches();
-  }, []);
+    dispatch(fetchChildBranches());
+  }, [dispatch]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setMessage('');
     setCreating(true);
 
     try {
       await userService.createChildBranch(form);
-      setMessage('Child branch created successfully!');
+      toast.success('Child branch created successfully!');
       setForm({ firstName: '', lastName: '', email: '', password: '' });
       setShowForm(false);
-      loadBranches();
+      dispatch(fetchChildBranches());
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create branch');
+      toast.error(err.response?.data?.message || 'Failed to create branch');
     } finally {
       setCreating(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this branch?')) return;
-    try {
-      await userService.deleteUser(id);
-      setBranches(prev => prev.filter(b => b._id !== id));
-      setMessage('Branch deleted successfully');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete branch');
+  const handleDelete = (id: string) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteId) {
+      try {
+        await dispatch(deleteUser(deleteId)).unwrap();
+        toast.success('Branch deleted successfully');
+      } catch (err: any) {
+        toast.error(err || 'Failed to delete branch');
+      } finally {
+        setDeleteId(null);
+      }
     }
   };
 
-  if (loading) {
+  if (isLoading && branches.length === 0) {
     return (
       <div className="flex justify-center items-center py-20">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
@@ -90,11 +81,8 @@ const Branches: React.FC = () => {
         </button>
       </div>
 
-      {message && (
-        <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg mb-4">{message}</div>
-      )}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-4">{error}</div>
+      {reduxError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-4">{reduxError}</div>
       )}
 
       {/* Create Branch Form */}
@@ -103,8 +91,9 @@ const Branches: React.FC = () => {
           <h3 className="text-lg font-semibold mb-4">Create a New Child Branch</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
               <input
+                id="firstName"
                 value={form.firstName}
                 onChange={e => setForm({ ...form, firstName: e.target.value })}
                 required
@@ -113,8 +102,9 @@ const Branches: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
               <input
+                id="lastName"
                 value={form.lastName}
                 onChange={e => setForm({ ...form, lastName: e.target.value })}
                 required
@@ -123,8 +113,9 @@ const Branches: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
               <input
+                id="email"
                 type="email"
                 value={form.email}
                 onChange={e => setForm({ ...form, email: e.target.value })}
@@ -134,8 +125,9 @@ const Branches: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
               <input
+                id="password"
                 type="password"
                 value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })}
@@ -171,12 +163,12 @@ const Branches: React.FC = () => {
             >
               <div>
                 <h3 className="font-semibold text-gray-800">
-                  {branch.name.first} {branch.name.last}
+                  {branch.name?.first} {branch.name?.last}
                 </h3>
                 <p className="text-sm text-gray-500">{branch.email}</p>
                 {branch.phone && <p className="text-sm text-gray-400">Phone: {branch.phone}</p>}
                 <p className="text-xs text-gray-400 mt-1">
-                  {branch.address?.city}, {branch.address?.country} | Joined: {new Date(branch.createdAt).toLocaleDateString()}
+                  {branch.address?.city}, {branch.address?.country} | Joined: {branch.createdAt ? new Date(branch.createdAt).toLocaleDateString() : 'N/A'}
                 </p>
               </div>
               <button
@@ -189,6 +181,14 @@ const Branches: React.FC = () => {
           ))}
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={!!deleteId}
+        title="Delete Branch"
+        message="Are you sure you want to delete this branch? All their inventory will be removed."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 };
