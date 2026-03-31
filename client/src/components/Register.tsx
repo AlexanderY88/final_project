@@ -26,7 +26,16 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     dispatch(clearError());
-    dispatch(register(userData));
+    // The backend API expects snake_case for names (first_name), but the frontend state uses camelCase (firstName).
+    // We create a new object here to match the API's expectation before dispatching.
+    const apiData = {
+      email: userData.email,
+      password: userData.password,
+      first_name: userData.firstName,
+      last_name: userData.lastName,
+      role: userData.role,
+    };
+    dispatch(register(apiData as any));
   };
 
   return (

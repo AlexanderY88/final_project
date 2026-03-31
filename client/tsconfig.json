@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "target": "es5",
+    "ignoreDeprecations": "6.0",
+    "useDefineForClassFields": true,
     "lib": [
       "dom",
       "dom.iterable",

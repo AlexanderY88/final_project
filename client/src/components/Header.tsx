@@ -18,8 +18,8 @@ const Header: React.FC = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const isAdmin = user?.isAdmin ?? false;
-  const isMainBrunch = user?.isMainBrunch ?? false;
+  const isAdmin = user?.isAdmin;
+  const isMainBranch = user?.isMainBrunch;
 
   const userName = user?.name?.first || 'User';
 
@@ -64,7 +64,7 @@ const Header: React.FC = () => {
                 <Link to="/dashboard" className={navLinkClass('/dashboard')}>Dashboard</Link>
                 <Link to="/products" className={navLinkClass('/products')}>Products</Link>
 
-                {(isMainBrunch || isAdmin) && (
+                {(isMainBranch || isAdmin) && (
                   <Link to="/branches" className={navLinkClass('/branches')}>Branches</Link>
                 )}
 
@@ -148,7 +148,7 @@ const Header: React.FC = () => {
                 <Link to="/dashboard" className={mobileNavLinkClass('/dashboard')} onClick={closeMobile}>Dashboard</Link>
                 <Link to="/products" className={mobileNavLinkClass('/products')} onClick={closeMobile}>Products</Link>
 
-                {(isMainBrunch || isAdmin) && (
+                {(isMainBranch || isAdmin) && (
                   <Link to="/branches" className={mobileNavLinkClass('/branches')} onClick={closeMobile}>Branches</Link>
                 )}
 
