@@ -29,6 +29,10 @@ Install these on the local machine:
 - npm 9+
 - MongoDB running locally (or a valid cloud `MONGODB_URI` inside the env file)
 
+Note:
+- The server now uses `sharp` to optimize uploaded product images automatically.
+- No extra env variables or manual config are required for this feature.
+
 ## Local setup
 
 From project root:
@@ -50,6 +54,15 @@ npm run dev
 This starts both apps together:
 - Client: `http://localhost:3000`
 - Server health endpoint: `http://localhost:5000/api/health`
+
+## Auto Seed In Development
+
+When the backend starts in `development`, it automatically runs incremental seed (`server/seed.js`).
+
+What it does:
+- Creates missing default users from seed data.
+- Skips users/products that already exist.
+- Does not wipe existing DB data.
 
 ## Run separately (optional)
 
@@ -88,6 +101,35 @@ npm run build
 - Use root commands exactly as written above (`npm run dev`, `npm run install:all`).
 - Do not run `npm start` in project root.
 
+4. Auto-seed did not run / test users are missing
+- Run seed manually from `server` folder.
+- PowerShell:
+
+```powershell
+cd server
+$env:NODE_ENV="development"
+node seed.js
+```
+
+- Bash:
+
+```bash
+cd server
+NODE_ENV=development node seed.js
+```
+
+- Then restart backend:
+
+```bash
+npm run dev
+```
+
+5. Large product image upload fails
+- The backend accepts product images up to `10MB` and compresses them automatically with `sharp` before saving.
+- Uploaded product images are optimized on the server, usually converted to a smaller WebP file.
+- Files larger than `10MB` are rejected.
+- If an upload still fails, check that the file is a valid `jpg`, `jpeg`, `png`, or `webp` image.
+
 ## Project scripts
 
 Root (`package.json`):
@@ -98,18 +140,39 @@ Root (`package.json`):
 Server (`server/package.json`):
 - `npm run dev` -> run backend in development
 - `npm run seed:full` -> seed sample data
+- Server dependencies include `sharp` for automatic uploaded image compression
 
 Client (`client/package.json`):
 - `npm start` -> run frontend
 - `npm test` -> run frontend tests
 
+## Test Users (Seed Data)
+
+Seed runs automatically when backend starts in development.
+If users are missing, run seed manually:
+
+```bash
+cd server
+$env:NODE_ENV="development"
+node seed.js
+```
+
+Available users from `server/seed.js`:
+- Admin
+	email: `admin@admin.com`
+	password: `Admin123!`
+- Main Branch
+	email: `main@branch.com`
+	password: `Business123!`
+- Child Branch
+	email: `north@branch.com`
+	password: `User123!`
+
 ---
 
 ## גרסה בעברית
 
-### מה למסור למרצה
-
-יש לצרף את קובץ הסביבה שסיפקת ולבקש לשים אותו כאן:
+יש להדביק את הקובץ הסביבה שמצורף ואבקש לשים אותו כאן:
 - `server/.env.development`
 
 חשוב:

@@ -12,8 +12,8 @@ const SECURITY_CONFIG = {
     { mime: 'image/webp', extensions: ['webp'] }
   ],
   
-  // Maximum file size (5MB)
-  maxFileSize: 5 * 1024 * 1024,
+  // Maximum source file size before optimization/compression
+  maxFileSize: 10 * 1024 * 1024,
   
   // ClamAV configuration
   clamAV: {

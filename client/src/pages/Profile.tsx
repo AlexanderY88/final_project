@@ -1,18 +1,31 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../app/hooks';
 import { getProfile } from '../features/auth/authSlice';
 import * as userService from '../services/users';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { User } from '../types/auth';
 
 const Profile: React.FC = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAppSelector(state => state.auth);
+  const [profileUser, setProfileUser] = useState<User | null>(null);
+  const [loadingProfileUser, setLoadingProfileUser] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingRoleChange, setPendingRoleChange] = useState<'admin' | 'main_brunch' | 'user' | null>(null);
+  const [roleChanging, setRoleChanging] = useState(false);
+
+  const selectedUserId = searchParams.get('userId');
+  const from = searchParams.get('from');
+  const isAdminEditingOtherUser = !!(user?.isAdmin && selectedUserId);
+  const currentProfileUser = isAdminEditingOtherUser ? profileUser : user;
 
   const [form, setForm] = useState({
     firstName: '',
@@ -28,44 +41,108 @@ const Profile: React.FC = () => {
     state: '',
   });
 
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    if (!isAdminEditingOtherUser || !selectedUserId) {
+      setProfileUser(null);
+      setLoadingProfileUser(false);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadUser = async () => {
+      setLoadingProfileUser(true);
+      try {
+        const selectedUser = await userService.getById(selectedUserId);
+        if (mounted) {
+          setProfileUser(selectedUser);
+        }
+      } catch (err: any) {
+        const errorMsg = err.response?.data?.message || 'Failed to load selected user';
+        if (mounted) {
+          setError(errorMsg);
+        }
+        toast.error(errorMsg);
+      } finally {
+        if (mounted) {
+          setLoadingProfileUser(false);
+        }
+      }
+    };
+
+    loadUser();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user, isAdminEditingOtherUser, selectedUserId]);
+
   // Load user data into form
   useEffect(() => {
-    if (user) {
+    if (currentProfileUser) {
       setForm({
-        firstName: user.name.first,
-        lastName: user.name.last,
-        middleName: user.name.middle || '',
-        email: user.email,
-        phone: user.phone || '',
-        country: user.address.country,
-        city: user.address.city,
-        street: user.address.street,
-        houseNumber: user.address.houseNumber,
-        zip: user.address.zip,
-        state: user.address.state || '',
+        firstName: currentProfileUser.name.first,
+        lastName: currentProfileUser.name.last,
+        middleName: currentProfileUser.name.middle || '',
+        email: currentProfileUser.email,
+        phone: currentProfileUser.phone || '',
+        country: currentProfileUser.address.country,
+        city: currentProfileUser.address.city,
+        street: currentProfileUser.address.street,
+        houseNumber: currentProfileUser.address.houseNumber,
+        zip: currentProfileUser.address.zip,
+        state: currentProfileUser.address.state || '',
       });
     }
-  }, [user]);
+  }, [currentProfileUser]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const getRoleValue = (u: User) => {
+    if (u.isAdmin) return 'admin';
+    if (u.isMainBrunch) return 'main_brunch';
+    return 'user';
+  };
+
+  const handleConfirmRoleChange = async () => {
+    if (!pendingRoleChange || !currentProfileUser) return;
+    setRoleChanging(true);
+    try {
+      const updatedUser = await userService.updateProfile(currentProfileUser._id, {
+        isAdmin: pendingRoleChange === 'admin',
+        isMainBrunch: pendingRoleChange === 'main_brunch',
+      });
+      setProfileUser(updatedUser);
+      toast.success('Role updated successfully');
+    } catch (err: any) {
+      toast.error('Failed to update role');
+    } finally {
+      setPendingRoleChange(null);
+      setRoleChanging(false);
+    }
+  };
+
   const handleSave = () => {
-    if (!user) return;
+    if (!currentProfileUser) return;
     setShowConfirm(true);
   };
 
   const handleConfirmSave = async () => {
     setShowConfirm(false);
-    if (!user) return;
+    if (!currentProfileUser) return;
     setSaving(true);
     setError('');
     setMessage('');
 
     try {
-      await userService.updateProfile(user._id, {
+      const updatedUser = await userService.updateProfile(currentProfileUser._id, {
         firstName: form.firstName,
         lastName: form.lastName,
         middleName: form.middleName,
@@ -83,7 +160,11 @@ const Profile: React.FC = () => {
       toast.success('Profile updated successfully!');
       setMessage('Profile updated successfully!');
       setEditing(false);
-      dispatch(getProfile()); // Refresh user data in Redux
+      if (isAdminEditingOtherUser) {
+        setProfileUser(updatedUser);
+      } else {
+        dispatch(getProfile());
+      }
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to update profile';
       setError(errorMsg);
@@ -93,20 +174,32 @@ const Profile: React.FC = () => {
     }
   };
 
-  if (!user) {
+  if (!user || loadingProfileUser || !currentProfileUser) {
     return (
-      <div className="flex justify-center items-center py-20">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+      <div className="min-h-[55vh] flex flex-col justify-center items-center gap-4">
+        <div className="relative">
+          <div className="h-14 w-14 rounded-full border-4 border-indigo-100"></div>
+          <div className="absolute inset-0 h-14 w-14 rounded-full border-4 border-transparent border-t-indigo-600 animate-spin"></div>
+        </div>
+        <p className="text-sm font-medium text-gray-600">Loading profile...</p>
       </div>
     );
   }
 
-  const roleLabel = user.isAdmin ? 'Admin' : user.isMainBrunch ? 'Main Branch' : 'Branch User';
+  const roleLabel = currentProfileUser.isAdmin ? 'Admin' : currentProfileUser.isMainBrunch ? 'Main Branch' : 'Branch User';
+  const roleLabelMap: Record<string, string> = { admin: 'Admin', main_brunch: 'Main Branch', user: 'Child Branch' };
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">My Profile</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">
+            {isAdminEditingOtherUser ? 'Update User' : 'My Profile'}
+          </h1>
+          {isAdminEditingOtherUser && (
+            <p className="text-sm text-gray-500 mt-1">Editing {currentProfileUser.email}</p>
+          )}
+        </div>
         <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium">
           {roleLabel}
         </span>
@@ -114,10 +207,22 @@ const Profile: React.FC = () => {
 
       <ConfirmationModal
         isOpen={showConfirm}
-        title="Update Profile"
-        message="Are you sure you want to save the changes to your profile?"
+        title={isAdminEditingOtherUser ? 'Update User' : 'Update Profile'}
+        message={isAdminEditingOtherUser
+          ? 'Are you sure you want to save the changes to this user?'
+          : 'Are you sure you want to save the changes to your profile?'}
         onConfirm={handleConfirmSave}
         onCancel={() => setShowConfirm(false)}
+      />
+
+      <ConfirmationModal
+        isOpen={!!pendingRoleChange}
+        title="Change User Role"
+        message={pendingRoleChange
+          ? `Are you sure you want to change ${currentProfileUser.name.first}'s role to ${roleLabelMap[pendingRoleChange]}?`
+          : ''}
+        onConfirm={handleConfirmRoleChange}
+        onCancel={() => setPendingRoleChange(null)}
       />
 
       {message && (
@@ -240,14 +345,53 @@ const Profile: React.FC = () => {
               onClick={() => setEditing(true)}
               className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg hover:bg-indigo-700 transition font-medium"
             >
-              Edit Profile
+              {isAdminEditingOtherUser ? 'Edit User' : 'Edit Profile'}
+            </button>
+          )}
+
+          {isAdminEditingOtherUser && (
+            <button
+              type="button"
+              onClick={() => {
+                if (from === 'admin-users' && selectedUserId) {
+                  navigate(`/dashboard?userId=${selectedUserId}&from=admin-users`);
+                  return;
+                }
+
+                navigate('/admin/users');
+              }}
+              className="border border-gray-300 px-6 py-2.5 rounded-lg hover:bg-gray-50 transition"
+            >
+              Back
             </button>
           )}
         </div>
 
+        {/* Change Role — admin only */}
+        {isAdminEditingOtherUser && (
+          <div className="mt-6 pt-4 border-t">
+            <h2 className="text-lg font-semibold text-gray-800 mb-3">Change Role</h2>
+            <div className="flex items-center gap-4">
+              <select
+                title="Select new role"
+                defaultValue={getRoleValue(currentProfileUser)}
+                key={currentProfileUser._id}
+                onChange={e => setPendingRoleChange(e.target.value as 'admin' | 'main_brunch' | 'user')}
+                disabled={roleChanging}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="user">Child Branch</option>
+                <option value="main_brunch">Main Branch</option>
+                <option value="admin">Admin</option>
+              </select>
+              <span className="text-sm text-gray-500">{roleChanging ? 'Updating...' : 'Select a role to change it'}</span>
+            </div>
+          </div>
+        )}
+
         {/* Meta Info */}
         <div className="mt-6 pt-4 border-t text-sm text-gray-400">
-          <p>Member since: {new Date(user.createdAt).toLocaleDateString()}</p>
+          <p>Member since: {new Date(currentProfileUser.createdAt).toLocaleDateString()}</p>
         </div>
       </div>
     </div>

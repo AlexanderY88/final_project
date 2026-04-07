@@ -165,7 +165,7 @@ export const connectForSeeding = async (): Promise<void> => {
 
 /**
  * Check and Auto-Seed Database in Development
- * Automatically runs seed script if database is empty in development mode
+ * Runs incremental seed script in development mode to ensure baseline data exists.
  */
 export const checkAndAutoSeed = async (): Promise<void> => {
   if (process.env.NODE_ENV !== 'development') {
@@ -173,23 +173,20 @@ export const checkAndAutoSeed = async (): Promise<void> => {
   }
 
   try {
-    const User = require('../models/User');
-    const userCount = await User.countDocuments();
-    
-    if (userCount === 0) {
-      console.log(chalk.yellow('🌱 Empty database detected, running auto-seed...'));
-      const { stdout, stderr } = await execAsync('node src/scripts/seedFull.js', {
-        cwd: process.cwd()
-      });
+    console.log(chalk.yellow('🌱 Development mode detected, running incremental seed...'));
+    const { stdout, stderr } = await execAsync('node seed.js', {
+      cwd: process.cwd()
+    });
 
-      if (stderr) {
-        console.error(chalk.red('⚠️  Seed script warnings:'), stderr);
-      }
-
-      console.log(chalk.green('✅ Auto-seeding completed successfully'));
-    } else {
-      console.log(chalk.blue('📊 Database already contains data, skipping auto-seeding'));
+    if (stdout) {
+      console.log(chalk.gray(stdout.trim()));
     }
+
+    if (stderr) {
+      console.error(chalk.red('⚠️  Seed script warnings:'), stderr);
+    }
+
+    console.log(chalk.green('✅ Incremental seed completed'));
   } catch (error) {
     console.error(chalk.red('❌ Auto-seeding failed:'), error);
   }

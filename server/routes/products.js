@@ -2,6 +2,7 @@
 const express = require('express');
 const joi = require('joi');
 const Product = require('../src/models/Product');
+const User = require('../src/models/User');
 const { uploadWithSecurity } = require('../src/middleware/fileUpload');
 const authMiddleware = require('../src/middleware/auth');
 const { recordQuantityChange } = require('../src/utils/quantityHistory');
@@ -19,15 +20,15 @@ const checkProductBody = joi.object({
     category: joi.string().required().min(2).max(50),
     quantity: joi.number().integer().min(0).default(0),
     // Address fields
-    state: joi.string().optional().max(50),
+    state: joi.string().allow('').optional().max(50),
     country: joi.string().required().min(2).max(50),
     city: joi.string().required().min(2).max(50),
     street: joi.string().required().min(2).max(100),
     houseNumber: joi.number().integer().required().min(1),
     zip: joi.number().integer().required().min(10000).max(99999),
     // Image options - either URL or file upload
-    imageUrl: joi.string().uri().optional(), // External image URL
-    imageAlt: joi.string().optional().max(200),
+    imageUrl: joi.string().uri().allow('').optional(), // External image URL
+    imageAlt: joi.string().allow('').optional().max(200),
     imageType: joi.string().valid('upload', 'url').optional() // Specify image type
 });
 
@@ -61,6 +62,21 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
             }
             return res.status(400).json({ message: error.details[0].message });
         }
+
+        const hasUploadedFile = !!req.file;
+        const hasImageUrl = !!value.imageUrl?.trim();
+        const hasImageInput = hasUploadedFile || hasImageUrl;
+
+        if (hasImageInput && !value.imageAlt?.trim()) {
+            if (req.file) {
+                fs.unlink(req.file.path, (err) => {
+                    if (err) console.error('Error deleting file:', err);
+                });
+            }
+            return res.status(400).json({ message: 'Image description (alt text) is required when an image is provided.' });
+        }
+
+        const normalizedImageAlt = hasImageInput ? value.imageAlt.trim() : 'No image uploaded';
         
         // Prepare product data structure
         const productData = {
@@ -72,7 +88,7 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
             supplier: value.supplier,
             category: value.category,
             branch_address: {
-                state: value.state,
+                state: value.state || undefined,
                 country: value.country,
                 city: value.city,
                 street: value.street,
@@ -98,7 +114,7 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
                 path: req.file.path,
                 mimetype: req.file.mimetype,
                 size: req.file.size,
-                alt: value.imageAlt || `Image for ${value.title}`,
+                alt: normalizedImageAlt,
                 imageType: 'upload',
                 // Store security validation info for audit trail
                 securityValidated: true,
@@ -108,7 +124,7 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
             // External URL provided - no file upload needed
             productData.image = {
                 url: value.imageUrl,
-                alt: value.imageAlt || `Image for ${value.title}`,
+                alt: normalizedImageAlt,
                 imageType: 'url'
             };
         } else if (value.imageType === 'url' && !value.imageUrl) {
@@ -119,6 +135,10 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
                 });
             }
             return res.status(400).json({ message: "Image URL is required when imageType is 'url'" });
+        } else {
+            productData.image = {
+                alt: normalizedImageAlt
+            };
         }
         
         // Add creator information
@@ -181,13 +201,14 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
 });
 
 // Get all products (with pagination and filtering)
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 12;
         const skip = (page - 1) * limit;
-        
-        const { search, category, supplier, minQty } = req.query;
+
+        const currentUser = req.user;
+        const { search, category, supplier, minQty, userId } = req.query;
         let query = {};
 
         if (search) {
@@ -202,20 +223,62 @@ router.get('/', async (req, res) => {
         if (supplier) query.supplier = supplier;
         if (minQty) query.quantity = { $gte: parseInt(minQty) };
 
+        // Scope products by viewing context
+        if (currentUser.role === 'admin' && userId) {
+            const contextUser = await User.findById(userId).select('_id isAdmin isMainBrunch');
+            if (!contextUser) {
+                return res.status(404).json({ message: 'Selected user context not found' });
+            }
+
+            if (!contextUser.isAdmin) {
+                if (contextUser.isMainBrunch) {
+                    const childUsers = await User.find({
+                        brunches: contextUser._id,
+                        isMainBrunch: false,
+                        isAdmin: false,
+                    }).select('_id');
+
+                    const allowedIds = [
+                        contextUser._id,
+                        ...childUsers.map((u) => u._id),
+                    ];
+
+                    query['createdBy.userId'] = { $in: allowedIds };
+                } else {
+                    query['createdBy.userId'] = contextUser._id;
+                }
+            }
+        } else if (currentUser.role === 'main_brunch') {
+            const childUsers = await User.find({
+                brunches: currentUser._id,
+                isMainBrunch: false,
+                isAdmin: false,
+            }).select('_id');
+
+            const allowedIds = [
+                currentUser._id,
+                ...childUsers.map((u) => u._id),
+            ];
+
+            query['createdBy.userId'] = { $in: allowedIds };
+        } else if (currentUser.role === 'user') {
+            query['createdBy.userId'] = currentUser._id;
+        }
+
         const products = await Product.find(query)
             .skip(skip)
             .limit(limit)
             .sort({ createdAt: -1 });
-            
+
         const total = await Product.countDocuments(query);
-        
+
         res.status(200).json({
             products,
             currentPage: page,
             totalPages: Math.ceil(total / limit),
             totalProducts: total
         });
-        
+
     } catch (error) {
         console.error('Error fetching products:', error);
         res.status(500).json({ message: "Server error" });
@@ -296,6 +359,22 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
             }
             return res.status(400).json({ message: error.details[0].message });
         }
+
+        const hasUploadedFile = !!req.file;
+        const hasImageUrl = !!value.imageUrl?.trim();
+        const hasExistingImage = !!product.image && !!(product.image.url || product.image.filename || product.image.alt);
+        const hasImageInput = hasUploadedFile || hasImageUrl || hasExistingImage;
+
+        if (hasImageInput && !value.imageAlt?.trim()) {
+            if (req.file) {
+                fs.unlink(req.file.path, (err) => {
+                    if (err) console.error('Error deleting file:', err);
+                });
+            }
+            return res.status(400).json({ message: 'Image description (alt text) is required when an image is provided.' });
+        }
+
+        const normalizedImageAlt = hasImageInput ? value.imageAlt.trim() : 'No image uploaded';
         
         // Prepare update data
         const updateData = {
@@ -307,7 +386,7 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
             supplier: value.supplier,
             category: value.category,
             branch_address: {
-                state: value.state,
+                state: value.state || undefined,
                 country: value.country,
                 city: value.city,
                 street: value.street,
@@ -345,7 +424,7 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
                 path: req.file.path,
                 mimetype: req.file.mimetype,
                 size: req.file.size,
-                alt: value.imageAlt || `Image for ${value.title}`,
+                alt: normalizedImageAlt,
                 imageType: 'upload',
                 // Store security validation info for audit trail
                 securityValidated: true,
@@ -363,7 +442,7 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
             // Set new URL image data
             updateData.image = {
                 url: value.imageUrl,
-                alt: value.imageAlt || `Image for ${value.title}`,
+                alt: normalizedImageAlt,
                 imageType: 'url'
             };
         } else if (value.imageType === 'url' && !value.imageUrl) {
@@ -371,10 +450,9 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
             return res.status(400).json({ message: "Image URL is required when imageType is 'url'" });
         } else {
             // Keep existing image if no new upload or URL
-            updateData.image = product.image;
-            // Update alt text if provided
-            if (value.imageAlt && updateData.image) {
-                updateData.image.alt = value.imageAlt;
+            updateData.image = product.image || { alt: normalizedImageAlt };
+            if (updateData.image) {
+                updateData.image.alt = normalizedImageAlt;
             }
         }
         
@@ -544,6 +622,25 @@ router.patch('/:id/quantity', authMiddleware, async (req, res) => {
         } catch (historyError) {
             console.error('⚠️  Failed to record quantity history:', historyError);
         }
+
+        req.logData = {
+            ...(req.logData || {}),
+            operation: 'quantity_change',
+            productId: id,
+            productTitle: updatedProduct.product.title,
+            productName: updatedProduct.product.title,
+            quantity,
+            oldQuantity: previousQuantity,
+            newQuantity: updatedProduct.quantity,
+            quantityChange: updatedProduct.quantity - previousQuantity,
+            quantityChangeType:
+                updatedProduct.quantity > previousQuantity
+                    ? 'increase'
+                    : updatedProduct.quantity < previousQuantity
+                        ? 'decrease'
+                        : 'no_change',
+            endpoint: `/api/products/${id}/quantity`,
+        };
         
         res.status(200).json({
             message: "Product quantity updated successfully",
@@ -662,291 +759,6 @@ router.get('/branches/report', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('❌ Error generating child branches report:', error);
         res.status(500).json({ message: "Server error during report generation" });
-    }
-});
-
-// Get product quantity statistics for specific product - Available to: admin, main_brunch, user (with restrictions)
-router.get('/statistics/:productId', authMiddleware, async (req, res) => {
-    try {
-        const currentUser = req.user;
-        const { productId } = req.params;
-        
-        // Role-based access control for statistics
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch' && currentUser.role !== 'user') {
-            return res.status(403).json({ message: "Access denied: Insufficient permissions to view statistics" });
-        }
-        
-        // Import statistics service
-        const ProductStatisticsService = require('../src/services/ProductStatisticsService');
-        
-        // Extract filter parameters from query
-        const {
-            timePeriod = 'last_6_months', // last_3_months, last_6_months, last_year, last_2_years, current_month, current_year, custom_range
-            customStartDate = null, // For custom_range
-            customEndDate = null,   // For custom_range
-            branchId = null,        // Filter by specific branch
-            branchName = null,      // Filter by branch name
-            groupBy = 'month',      // day, week, month, year
-            includeDetails = 'true' // Include detailed change history
-        } = req.query;
-        
-        // Convert string boolean to actual boolean
-        const includeDetailsBoolean = includeDetails === 'true';
-        
-        // Apply role-based restrictions
-        let filterOptions = {
-            timePeriod,
-            customStartDate,
-            customEndDate,
-            groupBy,
-            includeDetails: includeDetailsBoolean
-        };
-        
-        // Branch filtering based on user role
-        if (currentUser.role === 'user') {
-            // Child branch users can only see their own statistics
-            filterOptions.branchId = currentUser._id;
-        } else if (currentUser.role === 'main_brunch' || currentUser.role === 'admin') {
-            // Main branch and admin can filter by any branch
-            if (branchId) filterOptions.branchId = branchId;
-            if (branchName) filterOptions.branchName = branchName;
-        }
-        
-        // Validate product exists and user has access
-        const product = await Product.findById(productId);
-        if (!product) {
-            return res.status(404).json({ message: "Product not found" });
-        }
-        
-        // For child branch users, check if they created this product
-        if (currentUser.role === 'user' && product.createdBy.userId.toString() !== currentUser._id.toString()) {
-            return res.status(403).json({ message: "Access denied: You can only view statistics for products you created" });
-        }
-        
-        // Get statistics
-        const statistics = await ProductStatisticsService.getProductStatistics(productId, filterOptions);
-        
-        res.status(200).json({
-            message: "Product quantity statistics retrieved successfully",
-            requestedBy: {
-                userId: currentUser._id,
-                role: currentUser.role,
-                branchName: currentUser.branchName || 'Main Branch'
-            },
-            statistics
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting product statistics:', error);
-        
-        if (error.message.includes('not found') || error.message.includes('date')) {
-            return res.status(400).json({ message: error.message });
-        }
-        
-        res.status(500).json({ message: "Server error during statistics retrieval" });
-    }
-});
-
-// Get all branches statistics overview - Available to: admin, main_brunch
-router.get('/statistics/branches/overview', authMiddleware, async (req, res) => {
-    try {
-        const currentUser = req.user;
-        
-        // Only admin and main_brunch can view all branches statistics
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch') {
-            return res.status(403).json({ message: "Access denied: Only admins and main branch managers can view all branches statistics" });
-        }
-        
-        // Import statistics service
-        const ProductStatisticsService = require('../src/services/ProductStatisticsService');
-        
-        // Extract filter parameters from query
-        const {
-            timePeriod = 'last_6_months', 
-            customStartDate = null,
-            customEndDate = null,
-            branchId = null,
-            branchName = null,
-            groupBy = 'month',
-            includeProductDetails = 'false'
-        } = req.query;
-        
-        // Convert string boolean to actual boolean
-        const includeProductDetailsBoolean = includeProductDetails === 'true';
-        
-        const filterOptions = {
-            timePeriod,
-            customStartDate,
-            customEndDate,
-            branchId,
-            branchName,
-            groupBy,
-            includeProductDetails: includeProductDetailsBoolean
-        };
-        
-        // Filter statistics for main_brunch users
-        if (currentUser.role === 'main_brunch' && currentUser.brunches) {
-            // Main branch can see their own activities plus those of their child branches
-            // Note: ProductStatisticsService.getBranchStatistics currently handles branchId filter if provided
-            // However, the /overview endpoint allows branchId=null to see 'all'.
-            // For a main_brunch, 'all' should mean 'all their branches'.
-            if (!filterOptions.branchId) {
-                // If no specific branch is requested, we need to handle the filtering
-                // We'll modify filterOptions to include the array of allowed IDs
-                filterOptions.allowedBranchIds = currentUser.brunches;
-            } else if (!currentUser.brunches.includes(filterOptions.branchId)) {
-                // If a specific branch is requested, it MUST be one of theirs
-                return res.status(403).json({ message: "Access denied: You can only view statistics for your own branches" });
-            }
-        }
-        
-        // Get statistics
-        const statistics = await ProductStatisticsService.getBranchStatistics(filterOptions);
-        
-        res.status(200).json({
-            message: "All branches statistics retrieved successfully",
-            requestedBy: {
-                userId: currentUser._id,
-                role: currentUser.role,
-                branchName: currentUser.branchName || 'Main Branch'
-            },
-            statistics
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting branches statistics:', error);
-        
-        if (error.message.includes('date')) {
-            return res.status(400).json({ message: error.message });
-        }
-        
-        res.status(500).json({ message: "Server error during statistics retrieval" });
-    }
-});
-
-// Get branch comparison statistics - Available to: admin, main_brunch
-router.get('/statistics/branches/compare', authMiddleware, async (req, res) => {
-    try {
-        const currentUser = req.user;
-        
-        // Only admin and main_brunch can compare branches
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch') {
-            return res.status(403).json({ message: "Access denied: Only admins and main branch managers can compare branches" });
-        }
-        
-        // Import statistics service
-        const ProductStatisticsService = require('../src/services/ProductStatisticsService');
-        
-        // Extract parameters
-        const {
-            branchIds, // Comma-separated list of branch IDs
-            timePeriod = 'last_6_months',
-            customStartDate = null,
-            customEndDate = null,
-            groupBy = 'month'
-        } = req.query;
-        
-        if (!branchIds) {
-            return res.status(400).json({ message: "Branch IDs are required for comparison. Use ?branchIds=id1,id2,id3" });
-        }
-        
-        // Parse branch IDs
-        const branchIdArray = branchIds.split(',').map(id => id.trim());
-        
-        if (branchIdArray.length < 2) {
-            return res.status(400).json({ message: "At least 2 branches are required for comparison" });
-        }
-        
-        const filterOptions = {
-            timePeriod,
-            customStartDate,
-            customEndDate,
-            groupBy
-        };
-        
-        // Get comparison statistics
-        const comparison = await ProductStatisticsService.getBranchComparison(branchIdArray, filterOptions);
-        
-        res.status(200).json({
-            message: "Branch comparison statistics retrieved successfully",
-            requestedBy: {
-                userId: currentUser._id,
-                role: currentUser.role,
-                branchName: currentUser.branchName || 'Main Branch'
-            },
-            comparison
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting branch comparison:', error);
-        
-        if (error.message.includes('date') || error.message.includes('required')) {
-            return res.status(400).json({ message: error.message });
-        }
-        
-        res.status(500).json({ message: "Server error during comparison retrieval" });
-    }
-});
-
-// Get current user's branch statistics - Available to: user (child branches)
-router.get('/statistics/my-branch', authMiddleware, async (req, res) => {
-    try {
-        const currentUser = req.user;
-        
-        // All authenticated users can view their own branch statistics
-        if (!currentUser._id) {
-            return res.status(403).json({ message: "Access denied: Authentication required" });
-        }
-        
-        // Import statistics service
-        const ProductStatisticsService = require('../src/services/ProductStatisticsService');
-        
-        // Extract filter parameters
-        const {
-            timePeriod = 'last_3_months', // Default to 3 months for personal view
-            customStartDate = null,
-            customEndDate = null,
-            groupBy = 'month',
-            includeProductDetails = 'false'
-        } = req.query;
-        
-        const includeProductDetailsBoolean = includeProductDetails === 'true';
-        
-        const filterOptions = {
-            timePeriod,
-            customStartDate,
-            customEndDate,
-            branchId: currentUser._id, // Filter to current user's activities only
-            groupBy,
-            includeProductDetails: includeProductDetailsBoolean
-        };
-        
-        // Get user's branch statistics
-        const statistics = await ProductStatisticsService.getBranchStatistics(filterOptions);
-        
-        // Add user information to response
-        const userInfo = {
-            userId: currentUser._id,
-            username: `${currentUser.firstName} ${currentUser.lastName}`,
-            email: currentUser.email,
-            role: currentUser.role,
-            branchName: currentUser.firstName + "'s Branch"
-        };
-        
-        res.status(200).json({
-            message: "Personal branch statistics retrieved successfully",
-            userInfo,
-            statistics
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting personal branch statistics:', error);
-        
-        if (error.message.includes('date')) {
-            return res.status(400).json({ message: error.message });
-        }
-        
-        res.status(500).json({ message: "Server error during personal statistics retrieval" });
     }
 });
 

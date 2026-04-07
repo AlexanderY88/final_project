@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import * as userService from '../../services/users';
 import { User } from '../../types/auth';
+import { extractApiErrorMessage } from '../../utils/error';
 
 interface UsersState {
   users: User[];
@@ -21,11 +22,11 @@ const initialState: UsersState = {
 // Admin only: Fetch all users
 export const fetchAllUsers = createAsyncThunk(
   'users/fetchAll',
-  async (_, { rejectWithValue }) => {
+  async (query: userService.GetAllUsersQuery | undefined, { rejectWithValue }) => {
     try {
-      return await userService.getAllUsers();
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch users');
+      return await userService.getAllUsers(query);
+    } catch (error: unknown) {
+      return rejectWithValue(extractApiErrorMessage(error, 'Failed to fetch users'));
     }
   }
 );
@@ -33,11 +34,11 @@ export const fetchAllUsers = createAsyncThunk(
 // Main Branch: Fetch its child branches
 export const fetchChildBranches = createAsyncThunk(
   'users/fetchChildBranches',
-  async (_, { rejectWithValue }) => {
+  async (mainBrunchId: string | undefined, { rejectWithValue }) => {
     try {
-      return await userService.getChildBranches();
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch child branches');
+      return await userService.getChildBranches(mainBrunchId);
+    } catch (error: unknown) {
+      return rejectWithValue(extractApiErrorMessage(error, 'Failed to fetch child branches'));
     }
   }
 );
@@ -48,8 +49,8 @@ export const deleteUser = createAsyncThunk(
     try {
       await userService.deleteUser(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete user');
+    } catch (error: unknown) {
+      return rejectWithValue(extractApiErrorMessage(error, 'Failed to delete user'));
     }
   }
 );
@@ -87,7 +88,8 @@ const usersSlice = createSlice({
       })
       .addCase(fetchChildBranches.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.childBranches = action.payload;
+        // Backend returns { count, childBranches }, extract the array
+        state.childBranches = action.payload?.childBranches || [];
       })
       .addCase(fetchChildBranches.rejected, (state, action) => {
         state.isLoading = false;

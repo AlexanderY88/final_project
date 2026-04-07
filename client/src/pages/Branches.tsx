@@ -1,38 +1,84 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { fetchChildBranches, deleteUser } from '../features/users/usersSlice';
 import * as userService from '../services/users';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { childBranchSchema, getInputClassName, validateWithJoi } from '../utils/validation';
 
 const Branches: React.FC = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const currentUser = useAppSelector((state) => state.auth.user);
   const { childBranches: branches, isLoading, error: reduxError } = useAppSelector(state => state.users);
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  const selectedUserId = searchParams.get('userId') || undefined;
+  const isAdmin = !!currentUser?.isAdmin;
+  const mainBranchContextId = isAdmin ? selectedUserId : currentUser?.isMainBrunch ? currentUser._id : undefined;
+  const canCreateBranch = !isAdmin || !!mainBranchContextId;
 
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
+    phone: '',
+    country: 'Israel',
+    city: '',
+    street: '',
+    houseNumber: '',
+    zip: '',
   });
 
   useEffect(() => {
-    dispatch(fetchChildBranches());
-  }, [dispatch]);
+    dispatch(fetchChildBranches(selectedUserId));
+  }, [dispatch, selectedUserId]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!canCreateBranch) {
+      toast.error('Open a specific main branch first, then create its child branch from this page.');
+      return;
+    }
+
+    const normalizedForm = {
+      ...form,
+      houseNumber: Number(form.houseNumber),
+      zip: Number(form.zip),
+      ...(mainBranchContextId ? { mainBrunchId: mainBranchContextId } : {}),
+    };
+    const nextErrors = validateWithJoi(childBranchSchema, normalizedForm);
+    setValidationErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     setCreating(true);
 
     try {
-      await userService.createChildBranch(form);
+      await userService.createChildBranch(normalizedForm);
       toast.success('Child branch created successfully!');
-      setForm({ firstName: '', lastName: '', email: '', password: '' });
+      setForm({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        phone: '',
+        country: 'Israel',
+        city: '',
+        street: '',
+        houseNumber: '',
+        zip: '',
+      });
       setShowForm(false);
-      dispatch(fetchChildBranches());
+      dispatch(fetchChildBranches(selectedUserId));
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to create branch');
     } finally {
@@ -57,10 +103,32 @@ const Branches: React.FC = () => {
     }
   };
 
+  const clearFieldError = (field: string) => {
+    if (validationErrors[field]) {
+      setValidationErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
   if (isLoading && branches.length === 0) {
     return (
-      <div className="flex justify-center items-center py-20">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="flex flex-col justify-center items-center gap-4 py-10">
+          <div className="relative">
+            <div className="h-14 w-14 rounded-full border-4 border-indigo-100"></div>
+            <div className="absolute inset-0 h-14 w-14 rounded-full border-4 border-transparent border-t-indigo-600 animate-spin"></div>
+          </div>
+          <p className="text-sm font-medium text-gray-600">Loading branches...</p>
+        </div>
+
+        <div className="space-y-3" aria-label="Loading branches list">
+          {[1, 2, 3].map((item) => (
+            <div key={item} className="bg-white rounded-xl shadow-md p-5 animate-pulse">
+              <div className="h-4 w-52 bg-gray-300 rounded mb-2"></div>
+              <div className="h-3.5 w-64 bg-gray-200 rounded mb-2"></div>
+              <div className="h-3 w-40 bg-gray-200 rounded"></div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -68,13 +136,23 @@ const Branches: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Child Branches</h1>
-          <p className="text-sm text-gray-500">{branches.length} branches</p>
+        <div className="flex items-center gap-3 flex-1">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="border border-gray-300 px-3 py-2 rounded-lg hover:bg-gray-50 transition text-sm"
+          >
+            ← Back
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Child Branches</h1>
+            <p className="text-sm text-gray-500">{branches.length} branches</p>
+          </div>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium"
+          disabled={!canCreateBranch}
+          className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {showForm ? 'Cancel' : '+ New Branch'}
         </button>
@@ -82,6 +160,12 @@ const Branches: React.FC = () => {
 
       {reduxError && (
         <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-4">{reduxError}</div>
+      )}
+
+      {isAdmin && !mainBranchContextId && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg mb-4">
+          Choose a main branch first, then open its Branches page to create a child branch automatically under it.
+        </div>
       )}
 
       {/* Create Branch Form */}
@@ -94,22 +178,30 @@ const Branches: React.FC = () => {
               <input
                 id="firstName"
                 value={form.firstName}
-                onChange={e => setForm({ ...form, firstName: e.target.value })}
+                onChange={e => {
+                  setForm({ ...form, firstName: e.target.value });
+                  clearFieldError('firstName');
+                }}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className={getInputClassName(!!validationErrors.firstName, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
                 placeholder="John"
               />
+              {validationErrors.firstName && <p className="mt-1 text-sm text-red-600">{validationErrors.firstName}</p>}
             </div>
             <div>
               <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
               <input
                 id="lastName"
                 value={form.lastName}
-                onChange={e => setForm({ ...form, lastName: e.target.value })}
+                onChange={e => {
+                  setForm({ ...form, lastName: e.target.value });
+                  clearFieldError('lastName');
+                }}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className={getInputClassName(!!validationErrors.lastName, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
                 placeholder="Doe"
               />
+              {validationErrors.lastName && <p className="mt-1 text-sm text-red-600">{validationErrors.lastName}</p>}
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
@@ -117,11 +209,15 @@ const Branches: React.FC = () => {
                 id="email"
                 type="email"
                 value={form.email}
-                onChange={e => setForm({ ...form, email: e.target.value })}
+                onChange={e => {
+                  setForm({ ...form, email: e.target.value });
+                  clearFieldError('email');
+                }}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className={getInputClassName(!!validationErrors.email, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
                 placeholder="john@example.com"
               />
+              {validationErrors.email && <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>}
             </div>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
@@ -129,12 +225,110 @@ const Branches: React.FC = () => {
                 id="password"
                 type="password"
                 value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
+                onChange={e => {
+                  setForm({ ...form, password: e.target.value });
+                  clearFieldError('password');
+                }}
                 required
                 minLength={6}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className={getInputClassName(!!validationErrors.password, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
                 placeholder="Min 6 characters"
               />
+              {validationErrors.password && <p className="mt-1 text-sm text-red-600">{validationErrors.password}</p>}
+            </div>
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
+              <input
+                id="phone"
+                value={form.phone}
+                onChange={e => {
+                  setForm({ ...form, phone: e.target.value });
+                  clearFieldError('phone');
+                }}
+                required
+                className={getInputClassName(!!validationErrors.phone, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
+                placeholder="0501234567"
+              />
+              {validationErrors.phone && <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>}
+            </div>
+            <div>
+              <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">Country *</label>
+              <input
+                id="country"
+                value={form.country}
+                onChange={e => {
+                  setForm({ ...form, country: e.target.value });
+                  clearFieldError('country');
+                }}
+                required
+                className={getInputClassName(!!validationErrors.country, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
+                placeholder="Israel"
+              />
+              {validationErrors.country && <p className="mt-1 text-sm text-red-600">{validationErrors.country}</p>}
+            </div>
+            <div>
+              <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">City *</label>
+              <input
+                id="city"
+                value={form.city}
+                onChange={e => {
+                  setForm({ ...form, city: e.target.value });
+                  clearFieldError('city');
+                }}
+                required
+                className={getInputClassName(!!validationErrors.city, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
+                placeholder="Tel Aviv"
+              />
+              {validationErrors.city && <p className="mt-1 text-sm text-red-600">{validationErrors.city}</p>}
+            </div>
+            <div>
+              <label htmlFor="street" className="block text-sm font-medium text-gray-700 mb-1">Street *</label>
+              <input
+                id="street"
+                value={form.street}
+                onChange={e => {
+                  setForm({ ...form, street: e.target.value });
+                  clearFieldError('street');
+                }}
+                required
+                className={getInputClassName(!!validationErrors.street, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
+                placeholder="Herzl"
+              />
+              {validationErrors.street && <p className="mt-1 text-sm text-red-600">{validationErrors.street}</p>}
+            </div>
+            <div>
+              <label htmlFor="houseNumber" className="block text-sm font-medium text-gray-700 mb-1">House Number *</label>
+              <input
+                id="houseNumber"
+                type="number"
+                min="1"
+                value={form.houseNumber}
+                onChange={e => {
+                  setForm({ ...form, houseNumber: e.target.value });
+                  clearFieldError('houseNumber');
+                }}
+                required
+                className={getInputClassName(!!validationErrors.houseNumber, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
+                placeholder="10"
+              />
+              {validationErrors.houseNumber && <p className="mt-1 text-sm text-red-600">{validationErrors.houseNumber}</p>}
+            </div>
+            <div>
+              <label htmlFor="zip" className="block text-sm font-medium text-gray-700 mb-1">ZIP Code *</label>
+              <input
+                id="zip"
+                type="number"
+                min="1"
+                value={form.zip}
+                onChange={e => {
+                  setForm({ ...form, zip: e.target.value });
+                  clearFieldError('zip');
+                }}
+                required
+                className={getInputClassName(!!validationErrors.zip, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
+                placeholder="6100000"
+              />
+              {validationErrors.zip && <p className="mt-1 text-sm text-red-600">{validationErrors.zip}</p>}
             </div>
           </div>
           <button

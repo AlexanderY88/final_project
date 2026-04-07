@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { register, clearError } from '../features/auth/authSlice';
 import { RegisterData } from '../types/auth';
+import { getInputClassName, registerSchema, validateWithJoi } from '../utils/validation';
 
 const Register: React.FC = () => {
   const dispatch = useAppDispatch();
   const { isLoading, error } = useAppSelector((state) => state.auth);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
   const [userData, setUserData] = useState<RegisterData>({
     email: '',
@@ -21,21 +23,22 @@ const Register: React.FC = () => {
       ...prev,
       [name]: value,
     }));
+
+    if (validationErrors[name]) {
+      setValidationErrors((prev) => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextErrors = validateWithJoi(registerSchema, userData as RegisterData & { role: string });
+    setValidationErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     dispatch(clearError());
-    // The backend API expects snake_case for names (first_name), but the frontend state uses camelCase (firstName).
-    // We create a new object here to match the API's expectation before dispatching.
-    const apiData = {
-      email: userData.email,
-      password: userData.password,
-      first_name: userData.firstName,
-      last_name: userData.lastName,
-      role: userData.role,
-    };
-    dispatch(register(apiData as any));
+    dispatch(register(userData));
   };
 
   return (
@@ -72,9 +75,10 @@ const Register: React.FC = () => {
                   onChange={handleInputChange}
                   required
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                  className={getInputClassName(!!validationErrors.firstName, 'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed')}
                   placeholder="John"
                 />
+                {validationErrors.firstName && <p className="mt-1 text-sm text-red-600">{validationErrors.firstName}</p>}
               </div>
 
               {/* Last Name */}
@@ -90,9 +94,10 @@ const Register: React.FC = () => {
                   onChange={handleInputChange}
                   required
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                  className={getInputClassName(!!validationErrors.lastName, 'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed')}
                   placeholder="Doe"
                 />
+                {validationErrors.lastName && <p className="mt-1 text-sm text-red-600">{validationErrors.lastName}</p>}
               </div>
             </div>
 
@@ -109,9 +114,10 @@ const Register: React.FC = () => {
                 onChange={handleInputChange}
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                className={getInputClassName(!!validationErrors.email, 'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed')}
                 placeholder="john.doe@example.com"
               />
+              {validationErrors.email && <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>}
             </div>
 
             {/* Password Field */}
@@ -128,9 +134,10 @@ const Register: React.FC = () => {
                 required
                 minLength={6}
                 disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                className={getInputClassName(!!validationErrors.password, 'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed')}
                 placeholder="At least 6 characters"
               />
+              {validationErrors.password && <p className="mt-1 text-sm text-red-600">{validationErrors.password}</p>}
               <p className="mt-1 text-xs text-gray-500">Must include uppercase, lowercase, digit, and special character</p>
             </div>
 
@@ -145,11 +152,12 @@ const Register: React.FC = () => {
                 value={userData.role || 'user'}
                 onChange={handleInputChange}
                 disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                className={getInputClassName(!!validationErrors.role, 'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed')}
               >
                 <option value="user">Branch User (Child Branch)</option>
                 <option value="main_brunch">Main Branch Manager</option>
               </select>
+              {validationErrors.role && <p className="mt-1 text-sm text-red-600">{validationErrors.role}</p>}
             </div>
 
             {/* Submit Button */}

@@ -5,6 +5,12 @@ export interface CreateChildBrunchData {
   lastName: string;
   email: string;
   password: string;
+  phone: string;
+  country: string;
+  city: string;
+  street: string;
+  houseNumber: number;
+  zip: number;
   mainBrunchId?: string;
 }
 

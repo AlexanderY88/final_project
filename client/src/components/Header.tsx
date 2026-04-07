@@ -1,17 +1,36 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
+
+const THEME_STORAGE_KEY = 'stockmanager-theme';
+
+const getInitialDarkMode = () => {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  if (savedTheme === 'dark') return true;
+  if (savedTheme === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+};
 
 const Header: React.FC = () => {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(getInitialDarkMode);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+    localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   const handleLogout = () => {
     dispatch(logout());
     setMobileMenuOpen(false);
+  };
+
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => !prev);
   };
 
   const closeMobile = () => setMobileMenuOpen(false);
@@ -58,18 +77,38 @@ const Header: React.FC = () => {
             {/* Always visible */}
             <Link to="/about" className={navLinkClass('/about')}>About Us</Link>
             <Link to="/contact" className={navLinkClass('/contact')}>Contact Us</Link>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="px-3 py-2 rounded-md text-sm font-medium text-white border border-indigo-300 bg-indigo-500/40 hover:bg-indigo-500/70 transition duration-200"
+              title="Toggle dark mode"
+              aria-label="Toggle dark mode"
+            >
+              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+            </button>
 
             {isAuthenticated ? (
               <>
-                <Link to="/dashboard" className={navLinkClass('/dashboard')}>Dashboard</Link>
-                <Link to="/products" className={navLinkClass('/products')}>Products</Link>
+                {!isAdmin && <Link to="/dashboard" className={navLinkClass('/dashboard')}>Dashboard</Link>}
+                {!isAdmin && <Link to="/products" className={navLinkClass('/products')}>Products</Link>}
 
-                {(isMainBranch || isAdmin) && (
+                {isMainBranch && !isAdmin && (
                   <Link to="/branches" className={navLinkClass('/branches')}>Branches</Link>
                 )}
 
                 {isAdmin && (
-                  <Link to="/admin/users" className={navLinkClass('/admin/users')}>All Users</Link>
+                  <Link to="/admin/users" className={navLinkClass('/admin/users')}>Admins Panel</Link>
+                )}
+
+                {isAdmin && (
+                  <Link to="/admin/mailbox" className={navLinkClass('/admin/mailbox')}>
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      Mailbox
+                    </span>
+                  </Link>
                 )}
 
                 <Link to="/profile" className={navLinkClass('/profile')}>My Profile</Link>
@@ -142,18 +181,31 @@ const Header: React.FC = () => {
             {/* Always visible */}
             <Link to="/about" className={mobileNavLinkClass('/about')} onClick={closeMobile}>About Us</Link>
             <Link to="/contact" className={mobileNavLinkClass('/contact')} onClick={closeMobile}>Contact Us</Link>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-white border border-indigo-400 bg-indigo-500/40 hover:bg-indigo-500/70 transition duration-200"
+            >
+              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+            </button>
 
             {isAuthenticated ? (
               <>
-                <Link to="/dashboard" className={mobileNavLinkClass('/dashboard')} onClick={closeMobile}>Dashboard</Link>
-                <Link to="/products" className={mobileNavLinkClass('/products')} onClick={closeMobile}>Products</Link>
+                {!isAdmin && <Link to="/dashboard" className={mobileNavLinkClass('/dashboard')} onClick={closeMobile}>Dashboard</Link>}
+                {!isAdmin && <Link to="/products" className={mobileNavLinkClass('/products')} onClick={closeMobile}>Products</Link>}
 
-                {(isMainBranch || isAdmin) && (
+                {isMainBranch && !isAdmin && (
                   <Link to="/branches" className={mobileNavLinkClass('/branches')} onClick={closeMobile}>Branches</Link>
                 )}
 
                 {isAdmin && (
-                  <Link to="/admin/users" className={mobileNavLinkClass('/admin/users')} onClick={closeMobile}>All Users</Link>
+                  <Link to="/admin/users" className={mobileNavLinkClass('/admin/users')} onClick={closeMobile}>Admins Panel</Link>
+                )}
+
+                {isAdmin && (
+                  <Link to="/admin/mailbox" className={mobileNavLinkClass('/admin/mailbox')} onClick={closeMobile}>
+                    Mailbox
+                  </Link>
                 )}
 
                 <Link to="/profile" className={mobileNavLinkClass('/profile')} onClick={closeMobile}>My Profile</Link>

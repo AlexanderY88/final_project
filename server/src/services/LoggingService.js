@@ -73,8 +73,16 @@ class LoggingService {
             
             // Product Data (if available)
             productId: req.body?.productId || req.params?.id || additionalData.productId,
+            productTitle:
+                additionalData.productTitle ||
+                req.body?.title ||
+                req.body?.productTitle ||
+                req.body?.product?.title ||
+                null,
             quantity: req.body?.quantity || additionalData.quantity,
             quantityChange: additionalData.quantityChange,
+            oldQuantity: additionalData.oldQuantity,
+            newQuantity: additionalData.newQuantity,
             operation: additionalData.operation, // 'create', 'update', 'delete', 'quantity_change'
             
             // Additional business data
@@ -135,9 +143,16 @@ class LoggingService {
             
             // Product Business Intelligence
             productId: logData.productId,
+            productName: logData.productName || logData.productTitle,
+            productTitle: logData.productTitle || logData.productName,
             operation: logData.operation,
             quantity: logData.quantity,
             quantityChange: logData.quantityChange,
+            oldQuantity: logData.oldQuantity,
+            newQuantity: logData.newQuantity,
+            quantityChangeType: logData.quantityChangeType,
+            endpoint: logData.endpoint,
+            userEmail: logData.userEmail,
             
             // User and Branch tracking
             userId: logData.userId,

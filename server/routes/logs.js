@@ -2,6 +2,7 @@
 const express = require('express');
 const loggingService = require('../src/services/LoggingService');
 const authMiddleware = require('../src/middleware/auth');
+const User = require('../src/models/User');
 const router = express.Router();
 
 // Get Logs by Type and Date/Hour - GET /api/logs/:type/:date/:hour?
@@ -128,13 +129,30 @@ router.post('/search', authMiddleware, async (req, res) => {
             });
         }
         
-        const { logType, dateFrom, dateTo, filters = {} } = req.body;
+        const { logType, dateFrom, dateTo, contextUserId, filters = {} } = req.body;
         
         // Validate required fields
         if (!logType || !dateFrom || !dateTo) {
             return res.status(400).json({ 
                 message: "logType, dateFrom, and dateTo are required" 
             });
+        }
+
+        // Resolve allowed user IDs for admin impersonation
+        let allowedUserIds = null; // null = no restriction
+        if (currentUser.role === 'admin' && contextUserId) {
+            const contextUser = await User.findById(contextUserId).select('_id isAdmin isMainBrunch');
+            if (contextUser && !contextUser.isAdmin) {
+                allowedUserIds = [contextUser._id.toString()];
+                if (contextUser.isMainBrunch) {
+                    const children = await User.find({ brunches: contextUser._id, isMainBrunch: false, isAdmin: false }).select('_id');
+                    allowedUserIds.push(...children.map(u => u._id.toString()));
+                }
+            }
+        } else if (currentUser.role === 'main_brunch') {
+            allowedUserIds = [currentUser._id.toString()];
+            const children = await User.find({ brunches: currentUser._id, isMainBrunch: false, isAdmin: false }).select('_id');
+            allowedUserIds.push(...children.map(u => u._id.toString()));
         }
         
         // Simple search implementation (could be enhanced)
@@ -159,11 +177,9 @@ router.post('/search', authMiddleware, async (req, res) => {
                 if (filters.operation && log.operation !== filters.operation) match = false;
                 if (filters.userRole && log.userRole !== filters.userRole) match = false;
                 
-                // Branch restriction for main_brunch users
-                if (currentUser.role === 'main_brunch') {
-                    if (log.branchId && currentUser.brunches && !currentUser.brunches.includes(log.branchId)) {
-                        match = false;
-                    }
+                // Scope to allowed users (admin impersonation or main_brunch own scope)
+                if (allowedUserIds !== null && log.userId) {
+                    if (!allowedUserIds.includes(log.userId)) match = false;
                 }
                 
                 return match;

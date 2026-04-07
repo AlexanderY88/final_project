@@ -19,44 +19,43 @@ const loggingService = require('../services/LoggingService');
 const requestLogger = (additionalData = {}) => {
     return (req, res, next) => {
         const startTime = Date.now();
+        let hasLoggedResponse = false;
         
         // Store original methods
         const originalSend = res.send;
         const originalJson = res.json;
+
+        const logResponse = (body) => {
+            if (hasLoggedResponse) {
+                console.warn('⚠️  Duplicate response logging prevented for:', req.method, req.url);
+                return;
+            }
+
+            hasLoggedResponse = true;
+            const duration = Date.now() - startTime;
+
+            loggingService.logApiRequest(
+                req,
+                res,
+                req.user,
+                duration,
+                {
+                    ...additionalData,
+                    ...(req.logData || {}),
+                    responseBody: typeof body === 'string' ? body.substring(0, 500) : JSON.stringify(body).substring(0, 500)
+                }
+            );
+        };
         
         // Override response methods to capture data
         res.send = function(body) {
-            const duration = Date.now() - startTime;
-            
-            // Log the request/response
-            loggingService.logApiRequest(
-                req, 
-                res, 
-                req.user, 
-                duration, 
-                {
-                    ...additionalData,
-                    responseBody: typeof body === 'string' ? body.substring(0, 500) : '[Object]' // Limit size
-                }
-            );
+            logResponse(body);
             
             return originalSend.call(this, body);
         };
         
         res.json = function(body) {
-            const duration = Date.now() - startTime;
-            
-            // Log the request/response
-            loggingService.logApiRequest(
-                req, 
-                res, 
-                req.user, 
-                duration, 
-                {
-                    ...additionalData,
-                    responseBody: JSON.stringify(body).substring(0, 500) // Limit size
-                }
-            );
+            logResponse(body);
             
             return originalJson.call(this, body);
         };

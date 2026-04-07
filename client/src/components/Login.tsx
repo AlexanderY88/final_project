@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { login, clearError } from '../features/auth/authSlice';
 import { LoginCredentials } from '../types/auth';
+import { getInputClassName, validateWithJoi, loginSchema } from '../utils/validation';
 
 const Login: React.FC = () => {
   const dispatch = useAppDispatch();
   const { isLoading, error } = useAppSelector((state) => state.auth);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
   const [credentials, setCredentials] = useState<LoginCredentials>({
     email: '',
@@ -18,10 +20,20 @@ const Login: React.FC = () => {
       ...prev,
       [name]: value,
     }));
+
+    if (validationErrors[name]) {
+      setValidationErrors((prev) => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextErrors = validateWithJoi(loginSchema, credentials);
+    setValidationErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     dispatch(clearError());
     dispatch(login(credentials));
   };
@@ -58,9 +70,10 @@ const Login: React.FC = () => {
                 onChange={handleInputChange}
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                className={getInputClassName(!!validationErrors.email, 'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed')}
                 placeholder="Enter your email"
               />
+              {validationErrors.email && <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>}
             </div>
 
             {/* Password Field */}
@@ -76,9 +89,10 @@ const Login: React.FC = () => {
                 onChange={handleInputChange}
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                className={getInputClassName(!!validationErrors.password, 'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed')}
                 placeholder="Enter your password"
               />
+              {validationErrors.password && <p className="mt-1 text-sm text-red-600">{validationErrors.password}</p>}
             </div>
 
             {/* Submit Button */}

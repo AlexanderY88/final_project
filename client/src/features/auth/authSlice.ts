@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import * as authService from '../../services/auth';
 import { AuthState, LoginCredentials, RegisterData, User } from '../../types/auth';
+import { extractApiErrorMessage } from '../../utils/error';
 
 const initialState: AuthState = {
   user: authService.getStoredUser(),
@@ -15,8 +16,21 @@ export const login = createAsyncThunk(
   async (credentials: LoginCredentials, { rejectWithValue }) => {
     try {
       return await authService.login(credentials);
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || error.message || 'Login failed');
+    } catch (error: unknown) {
+      const status = (error as any)?.response?.status;
+      if (status === 429) {
+        return rejectWithValue('Too many sign-in attempts. Please wait 15 minutes and try again.');
+      }
+
+      if (status === 400 || status === 401) {
+        return rejectWithValue('Wrong email or password');
+      }
+
+      const message = extractApiErrorMessage(error, 'Invalid email or password');
+      const normalized = message.toLowerCase().includes('email or password')
+        ? 'Wrong email or password'
+        : message;
+      return rejectWithValue(normalized);
     }
   }
 );
@@ -26,8 +40,8 @@ export const register = createAsyncThunk(
   async (userData: RegisterData, { rejectWithValue }) => {
     try {
       return await authService.register(userData);
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || error.message || 'Registration failed');
+    } catch (error: unknown) {
+      return rejectWithValue(extractApiErrorMessage(error, 'Registration failed'));
     }
   }
 );
@@ -37,8 +51,8 @@ export const getProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       return await authService.getProfile();
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || error.message || 'Failed to get profile');
+    } catch (error: unknown) {
+      return rejectWithValue(extractApiErrorMessage(error, 'Failed to get profile'));
     }
   }
 );

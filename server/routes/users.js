@@ -27,6 +27,27 @@ const childBrunchSchema = joi.object({
     lastName: joi.string().required(),
     email: joi.string().email().required(),
     password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/),
+    phone: joi.string().required(),
+    country: joi.string().required(),
+    city: joi.string().required(),
+    street: joi.string().required(),
+    houseNumber: joi.number().integer().min(1).required(),
+    zip: joi.number().integer().min(1).required(),
+    mainBrunchId: joi.string().optional(),
+});
+
+const createUserSchema = joi.object({
+    firstName: joi.string().required(),
+    lastName: joi.string().required(),
+    email: joi.string().email().required(),
+    password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/),
+    role: joi.string().valid('user', 'main_brunch', 'admin').default('main_brunch'),
+    phone: joi.string().allow('').optional(),
+    city: joi.string().required(),
+    country: joi.string().required(),
+    street: joi.string().required(),
+    houseNumber: joi.number().integer().min(1).required(),
+    zip: joi.number().integer().min(1).required(),
     mainBrunchId: joi.string().optional(),
 });
 
@@ -159,6 +180,7 @@ router.get("/all", authMiddleware, async (req, res) => {
 router.get("/child-brunches", authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
+        const { mainBrunchId } = req.query;
 
         if (currentUser.role !== 'main_brunch' && currentUser.role !== 'admin') {
             return res.status(403).json({ message: "Access denied" });
@@ -166,8 +188,21 @@ router.get("/child-brunches", authMiddleware, async (req, res) => {
 
         let childBranches;
         if (currentUser.role === 'admin') {
-            // Admin sees all child branch users
-            childBranches = await User.find({ isAdmin: false, isMainBrunch: false }).select('-password');
+            if (mainBrunchId) {
+                const mainBranch = await User.findById(mainBrunchId);
+                if (!mainBranch || !mainBranch.isMainBrunch) {
+                    return res.status(400).json({ message: "Invalid main branch" });
+                }
+
+                childBranches = await User.find({
+                    brunches: mainBranch._id,
+                    isMainBrunch: false,
+                    isAdmin: false,
+                }).select('-password');
+            } else {
+                // Admin sees all child branch users if no main branch context is provided
+                childBranches = await User.find({ isAdmin: false, isMainBrunch: false }).select('-password');
+            }
         } else {
             // Main branch sees children linked to them via brunches array
             childBranches = await User.find({
@@ -221,8 +256,14 @@ router.post("/create-child-brunch", authMiddleware, async (req, res) => {
             name: { first: req.body.firstName, last: req.body.lastName },
             email: req.body.email,
             password: req.body.password,
-            phone: '0000000000',
-            address: { country: 'Israel', city: 'Tel Aviv', street: 'Default', houseNumber: 1, zip: 10000 },
+            phone: req.body.phone,
+            address: {
+                country: req.body.country,
+                city: req.body.city,
+                street: req.body.street,
+                houseNumber: req.body.houseNumber,
+                zip: req.body.zip,
+            },
             isMainBrunch: false,
             isAdmin: false,
             brunches: [parentId],
@@ -236,6 +277,71 @@ router.post("/create-child-brunch", authMiddleware, async (req, res) => {
         res.status(201).json({ message: "Child branch created", user: created });
     } catch (error) {
         console.error("Error creating child branch:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// Create user (admin only) - can create any type of user
+router.post("/create-user", authMiddleware, async (req, res) => {
+    try {
+        const currentUser = req.user;
+
+        // Only admins can use this endpoint
+        if (currentUser.role !== 'admin') {
+            return res.status(403).json({ message: "Access denied: Only admins can create users" });
+        }
+
+        const { error } = createUserSchema.validate(req.body);
+        if (error) return res.status(400).send(error.details[0].message);
+
+        // Check if user already exists
+        let existing = await User.findOne({ email: req.body.email });
+        if (existing) return res.status(400).json({ message: "User already exists" });
+
+        // Determine role
+        const role = req.body.role || 'user';
+        const isAdmin = role === 'admin';
+        const isMainBrunch = role === 'main_brunch';
+
+        // For child branches, require a main branch ID
+        let parentId = null;
+        if (role === 'user' && !req.body.mainBrunchId) {
+            return res.status(400).json({ message: "mainBrunchId is required when creating a child branch user" });
+        }
+
+        if (role === 'user' && req.body.mainBrunchId) {
+            const mainUser = await User.findById(req.body.mainBrunchId);
+            if (!mainUser || !mainUser.isMainBrunch) {
+                return res.status(400).json({ message: "Invalid main branch ID" });
+            }
+            parentId = mainUser._id;
+        }
+
+        const newUser = new User({
+            name: { first: req.body.firstName, last: req.body.lastName },
+            email: req.body.email,
+            password: req.body.password,
+            phone: req.body.phone || '0000000000',
+            address: {
+                country: req.body.country || 'Israel',
+                city: req.body.city || 'Tel Aviv',
+                street: req.body.street || 'Default',
+                houseNumber: req.body.houseNumber || 1,
+                zip: req.body.zip || 10000
+            },
+            isMainBrunch: isMainBrunch,
+            isAdmin: isAdmin,
+            brunches: parentId ? [parentId] : [],
+        });
+
+        const salt = await bcrypt.genSalt(10);
+        newUser.password = await bcrypt.hash(newUser.password, salt);
+        await newUser.save();
+
+        const created = await User.findById(newUser._id).select('-password');
+        res.status(201).json({ message: "User created successfully", user: created });
+    } catch (error) {
+        console.error("Error creating user:", error);
         res.status(500).json({ message: "Server error" });
     }
 });

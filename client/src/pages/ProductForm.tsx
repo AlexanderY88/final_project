@@ -7,6 +7,8 @@ import { ProductFormData } from '../types/product';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
 
+const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024;
+
 const ProductForm: React.FC = () => {
   const { id } = useParams();
   const isEdit = !!id;
@@ -16,6 +18,7 @@ const ProductForm: React.FC = () => {
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [hasExistingImage, setHasExistingImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
@@ -42,6 +45,7 @@ const ProductForm: React.FC = () => {
   useEffect(() => {
     if (isEdit && id) {
       productService.getById(id).then(product => {
+        setHasExistingImage(!!product.image && !!(product.image.url || product.image.filename || product.image.alt));
         setForm({
           title: product.product.title,
           subtitle: product.product.subtitle || '',
@@ -65,6 +69,15 @@ const ProductForm: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
+
+    if (file && file.size > MAX_IMAGE_FILE_SIZE) {
+      setImageFile(null);
+      setImagePreview(null);
+      e.target.value = '';
+      toast.error('Image file is too large. Maximum allowed source file size is 10MB before compression.');
+      return;
+    }
+
     setImageFile(file);
     if (file) {
       const reader = new FileReader();
@@ -84,6 +97,15 @@ const ProductForm: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const hasImageInput = Boolean(imageFile) || (form.imageType === 'url' && (form.imageUrl || '').trim().length > 0) || hasExistingImage;
+    if (hasImageInput && !(form.imageAlt || '').trim()) {
+      const validationMessage = 'Image description (alt text) is required when an image is provided.';
+      setError(validationMessage);
+      toast.error(validationMessage);
+      return;
+    }
+
     setShowConfirm(true);
   };
 
@@ -92,12 +114,21 @@ const ProductForm: React.FC = () => {
     setLoading(true);
     setError('');
 
+    const hasImageInput = Boolean(imageFile) || (form.imageType === 'url' && (form.imageUrl || '').trim().length > 0) || hasExistingImage;
+    const normalizedForm = {
+      ...form,
+      subtitle: (form.subtitle || '').trim() || undefined,
+      state: (form.state || '').trim() || undefined,
+      imageUrl: form.imageType === 'url' ? ((form.imageUrl || '').trim() || undefined) : undefined,
+      imageAlt: hasImageInput ? (form.imageAlt || '').trim() : 'No image uploaded',
+    };
+
     try {
       if (isEdit && id) {
-        await dispatch(updateProduct({ id, data: form, image: imageFile || undefined })).unwrap();
+        await dispatch(updateProduct({ id, data: normalizedForm, image: imageFile || undefined })).unwrap();
         toast.success('Product updated successfully!');
       } else {
-        await dispatch(createProduct({ data: form, image: imageFile || undefined })).unwrap();
+        await dispatch(createProduct({ data: normalizedForm, image: imageFile || undefined })).unwrap();
         toast.success('Product created successfully!');
       }
       navigate('/products');
@@ -155,8 +186,8 @@ const ProductForm: React.FC = () => {
             onChange={handleChange}
             required
             minLength={10}
-            rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            rows={5}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none overflow-y-auto"
           />
         </div>
 
@@ -236,14 +267,19 @@ const ProductForm: React.FC = () => {
           </div>
 
           {form.imageType === 'upload' ? (
-            <input
-              id="imageFile"
-              title="Upload product image"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleFileChange}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
-            />
+            <div>
+              <input
+                id="imageFile"
+                title="Upload product image"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleFileChange}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                Allowed formats: PNG, JPG, JPEG, WebP. Maximum source file size: 10MB.
+              </p>
+            </div>
           ) : (
             <input
               name="imageUrl"
@@ -261,6 +297,9 @@ const ProductForm: React.FC = () => {
             placeholder="Image description (alt text)"
             className="w-full mt-2 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
+          <p className="mt-2 text-xs text-gray-500">
+            Alt text is required only when you upload an image or provide an image URL. If no image is provided, the system uses: "No image uploaded".
+          </p>
         </div>
 
         {/* Branch Address */}

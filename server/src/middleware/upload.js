@@ -10,7 +10,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB source upload before optimization
 
 // Save file with a random name (never expose the original filename)
 const storage = multer.diskStorage({

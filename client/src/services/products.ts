@@ -1,8 +1,8 @@
 import api from './api';
 import { ProductFormData } from '../types/product';
 
-export const getAll = async (page = 1, limit = 10) => {
-  const { data } = await api.get('/products', { params: { page, limit } });
+export const getAll = async (page = 1, limit = 10, userId?: string) => {
+  const { data } = await api.get('/products', { params: { page, limit, userId } });
   return data;
 };
 
@@ -61,27 +61,5 @@ export const updateQuantity = async (id: string, quantity: number) => {
 
 export const getBranchesReport = async () => {
   const { data } = await api.get('/products/branches/report');
-  return data;
-};
-
-export const getProductStatistics = async (productId: string, filters?: any) => {
-  const { data } = await api.get(`/products/statistics/${productId}`, { params: filters });
-  return data;
-};
-
-export const getBranchStatisticsOverview = async (filters?: any) => {
-  const { data } = await api.get('/products/statistics/branches/overview', { params: filters });
-  return data;
-};
-
-export const getBranchComparison = async (branchIds: string[], filters?: any) => {
-  const { data } = await api.get('/products/statistics/branches/compare', {
-    params: { branchIds: branchIds.join(','), ...filters },
-  });
-  return data;
-};
-
-export const getMyBranchStatistics = async (filters?: any) => {
-  const { data } = await api.get('/products/statistics/my-branch', { params: filters });
   return data;
 };

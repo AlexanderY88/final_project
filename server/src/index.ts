@@ -8,8 +8,9 @@ import path from 'path';
 
 // Import route handlers
 const userRoutes = require('../routes/users');  // User authentication and management routes
-const productRoutes = require('../routes/products');  // Product management and statistics routes
+const productRoutes = require('../routes/products');  // Product management routes
 const logRoutes = require('../routes/logs');  // Logging and analytics routes
+const messageRoutes = require('../routes/messages');  // Contact-us mailbox routes
 
 // Import middleware
 const { requestLogger, errorLogger } = require('./middleware/logging');
@@ -40,25 +41,17 @@ const PORT = process.env.PORT || 5000;
 /**
  * Security and CORS Middleware Configuration
  */
-// Helmet: Sets various HTTP headers for security
-app.use(helmet());
+// Helmet: Sets various HTTP headers for security.
+// Allow cross-origin resource loading so the frontend (localhost:3000)
+// can render images served from the API host (localhost:5000).
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
 /**
  * Rate Limiting Middleware - Brute Force Protection
- * Prevents brute force attacks by limiting requests per IP
+ * Restrict only login attempts by IP to prevent brute force attacks
  */
-// General API rate limiting: 100 requests per 15 minutes per IP
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
-  },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
-
 // Strict login rate limiting: 5 attempts per 15 minutes per IP
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -71,9 +64,6 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful requests
 });
-
-// Apply general rate limiting to all API routes
-app.use('/api', generalLimiter);
 
 // CORS: Configure cross-origin resource sharing
 app.use(cors({
@@ -102,9 +92,12 @@ app.use('/api/images', express.static(path.resolve(__dirname, '../uploads')));
 /**
  * API Route Configuration
  */
-app.use('/api/users', loginLimiter, userRoutes);      // User authentication and profile routes with login protection
-app.use('/api/products', productRoutes); // Product management and statistics routes
+// Apply strict rate limiting only to login attempts, not all user endpoints.
+app.use('/api/users/login', loginLimiter);
+app.use('/api/users', userRoutes);      // User authentication and profile routes
+app.use('/api/products', productRoutes); // Product management routes
 app.use('/api/logs', logRoutes);         // Logging and analytics routes
+app.use('/api/messages', messageRoutes); // Contact-us mailbox routes
 
 /**
  * Health Check Endpoint
@@ -131,6 +124,12 @@ app.use(errorLogger);
  */
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('❌ Unhandled Error:', error);
+
+  if (error?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      message: 'Image file is too large. Maximum allowed source file size is 10MB before compression.'
+    });
+  }
   
   const statusCode = error.statusCode || 500;
   const message = error.message || 'Internal Server Error';
