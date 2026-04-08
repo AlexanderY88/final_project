@@ -5,7 +5,7 @@ import { fetchChildBranches, deleteUser } from '../features/users/usersSlice';
 import * as userService from '../services/users';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { childBranchSchema, getInputClassName, validateWithJoi } from '../utils/validation';
+import { childBranchSchema, getFieldErrorWithJoi, getInputClassName, validateWithJoi } from '../utils/validation';
 
 const Branches: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -36,9 +36,31 @@ const Branches: React.FC = () => {
     zip: '',
   });
 
+  const branchValidationForm = {
+    ...form,
+    houseNumber: form.houseNumber === '' ? undefined : Number(form.houseNumber),
+    zip: form.zip === '' ? '' : Number(form.zip),
+    ...(mainBranchContextId ? { mainBrunchId: mainBranchContextId } : {}),
+  };
+
   useEffect(() => {
     dispatch(fetchChildBranches(selectedUserId));
   }, [dispatch, selectedUserId]);
+
+  const handleFieldChange = (name: string, value: string) => {
+    const nextForm = { ...form, [name]: value };
+    setForm(nextForm);
+
+    const normalized = {
+      ...nextForm,
+      houseNumber: nextForm.houseNumber === '' ? undefined : Number(nextForm.houseNumber),
+      zip: nextForm.zip === '' ? '' : Number(nextForm.zip),
+      ...(mainBranchContextId ? { mainBrunchId: mainBranchContextId } : {}),
+    };
+
+    const fieldError = getFieldErrorWithJoi(childBranchSchema, normalized, name);
+    setValidationErrors((prev) => ({ ...prev, [name]: fieldError }));
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,17 +70,23 @@ const Branches: React.FC = () => {
       return;
     }
 
-    const normalizedForm = {
-      ...form,
-      houseNumber: Number(form.houseNumber),
-      zip: Number(form.zip),
-      ...(mainBranchContextId ? { mainBrunchId: mainBranchContextId } : {}),
-    };
-    const nextErrors = validateWithJoi(childBranchSchema, normalizedForm);
+    const nextErrors = validateWithJoi(childBranchSchema, branchValidationForm);
     setValidationErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
+      const firstError = Object.values(nextErrors)[0];
+      if (firstError) {
+        toast.error(firstError);
+      }
       return;
     }
+
+    const normalizedForm = {
+      ...form,
+      email: String(form.email).trim().toLowerCase(),
+      houseNumber: Number(form.houseNumber),
+      zip: Number(form.zip || 10000),
+      ...(mainBranchContextId ? { mainBrunchId: mainBranchContextId } : {}),
+    };
 
     setCreating(true);
 
@@ -80,7 +108,13 @@ const Branches: React.FC = () => {
       setShowForm(false);
       dispatch(fetchChildBranches(selectedUserId));
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to create branch');
+      const backendError = err?.response?.data;
+      const errorMsg =
+        (typeof backendError === 'string' ? backendError : undefined) ||
+        backendError?.message ||
+        err?.message ||
+        'Failed to create branch';
+      toast.error(errorMsg);
     } finally {
       setCreating(false);
     }
@@ -139,7 +173,13 @@ const Branches: React.FC = () => {
         <div className="flex items-center gap-3 flex-1">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              if (isAdmin && selectedUserId) {
+                navigate(`/dashboard?userId=${selectedUserId}&from=admin-users`);
+                return;
+              }
+              navigate(-1);
+            }}
             className="border border-gray-300 px-3 py-2 rounded-lg hover:bg-gray-50 transition text-sm"
           >
             ← Back
@@ -170,36 +210,34 @@ const Branches: React.FC = () => {
 
       {/* Create Branch Form */}
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white rounded-xl shadow-md p-6 mb-6">
+        <form onSubmit={handleCreate} noValidate className="bg-white rounded-xl shadow-md p-6 mb-6">
           <h3 className="text-lg font-semibold mb-4">Create a New Child Branch</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">Branch Name *</label>
               <input
                 id="firstName"
                 value={form.firstName}
                 onChange={e => {
-                  setForm({ ...form, firstName: e.target.value });
-                  clearFieldError('firstName');
+                  handleFieldChange('firstName', e.target.value);
                 }}
                 required
                 className={getInputClassName(!!validationErrors.firstName, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
-                placeholder="John"
+                placeholder="North Branch"
               />
               {validationErrors.firstName && <p className="mt-1 text-sm text-red-600">{validationErrors.firstName}</p>}
             </div>
             <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Manager *</label>
               <input
                 id="lastName"
                 value={form.lastName}
                 onChange={e => {
-                  setForm({ ...form, lastName: e.target.value });
-                  clearFieldError('lastName');
+                  handleFieldChange('lastName', e.target.value);
                 }}
                 required
                 className={getInputClassName(!!validationErrors.lastName, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
-                placeholder="Doe"
+                placeholder="David Cohen"
               />
               {validationErrors.lastName && <p className="mt-1 text-sm text-red-600">{validationErrors.lastName}</p>}
             </div>
@@ -207,11 +245,11 @@ const Branches: React.FC = () => {
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
               <input
                 id="email"
-                type="email"
+                type="text"
+                inputMode="email"
                 value={form.email}
                 onChange={e => {
-                  setForm({ ...form, email: e.target.value });
-                  clearFieldError('email');
+                  handleFieldChange('email', e.target.value);
                 }}
                 required
                 className={getInputClassName(!!validationErrors.email, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
@@ -226,8 +264,7 @@ const Branches: React.FC = () => {
                 type="password"
                 value={form.password}
                 onChange={e => {
-                  setForm({ ...form, password: e.target.value });
-                  clearFieldError('password');
+                  handleFieldChange('password', e.target.value);
                 }}
                 required
                 minLength={6}
@@ -242,8 +279,7 @@ const Branches: React.FC = () => {
                 id="phone"
                 value={form.phone}
                 onChange={e => {
-                  setForm({ ...form, phone: e.target.value });
-                  clearFieldError('phone');
+                  handleFieldChange('phone', e.target.value);
                 }}
                 required
                 className={getInputClassName(!!validationErrors.phone, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
@@ -257,8 +293,7 @@ const Branches: React.FC = () => {
                 id="country"
                 value={form.country}
                 onChange={e => {
-                  setForm({ ...form, country: e.target.value });
-                  clearFieldError('country');
+                  handleFieldChange('country', e.target.value);
                 }}
                 required
                 className={getInputClassName(!!validationErrors.country, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
@@ -272,8 +307,7 @@ const Branches: React.FC = () => {
                 id="city"
                 value={form.city}
                 onChange={e => {
-                  setForm({ ...form, city: e.target.value });
-                  clearFieldError('city');
+                  handleFieldChange('city', e.target.value);
                 }}
                 required
                 className={getInputClassName(!!validationErrors.city, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
@@ -287,8 +321,7 @@ const Branches: React.FC = () => {
                 id="street"
                 value={form.street}
                 onChange={e => {
-                  setForm({ ...form, street: e.target.value });
-                  clearFieldError('street');
+                  handleFieldChange('street', e.target.value);
                 }}
                 required
                 className={getInputClassName(!!validationErrors.street, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
@@ -304,8 +337,7 @@ const Branches: React.FC = () => {
                 min="1"
                 value={form.houseNumber}
                 onChange={e => {
-                  setForm({ ...form, houseNumber: e.target.value });
-                  clearFieldError('houseNumber');
+                  handleFieldChange('houseNumber', e.target.value);
                 }}
                 required
                 className={getInputClassName(!!validationErrors.houseNumber, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
@@ -314,17 +346,15 @@ const Branches: React.FC = () => {
               {validationErrors.houseNumber && <p className="mt-1 text-sm text-red-600">{validationErrors.houseNumber}</p>}
             </div>
             <div>
-              <label htmlFor="zip" className="block text-sm font-medium text-gray-700 mb-1">ZIP Code *</label>
+              <label htmlFor="zip" className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
               <input
                 id="zip"
                 type="number"
                 min="1"
                 value={form.zip}
                 onChange={e => {
-                  setForm({ ...form, zip: e.target.value });
-                  clearFieldError('zip');
+                  handleFieldChange('zip', e.target.value);
                 }}
-                required
                 className={getInputClassName(!!validationErrors.zip, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
                 placeholder="6100000"
               />
@@ -356,20 +386,39 @@ const Branches: React.FC = () => {
             >
               <div>
                 <h3 className="font-semibold text-gray-800">
-                  {branch.name?.first} {branch.name?.last}
+                  {branch.name?.first}
                 </h3>
+                <p className="text-sm text-gray-500">Manager: {branch.name?.last}</p>
                 <p className="text-sm text-gray-500">{branch.email}</p>
                 {branch.phone && <p className="text-sm text-gray-400">Phone: {branch.phone}</p>}
                 <p className="text-xs text-gray-400 mt-1">
                   {branch.address?.city}, {branch.address?.country} | Joined: {branch.createdAt ? new Date(branch.createdAt).toLocaleDateString() : 'N/A'}
                 </p>
               </div>
-              <button
-                onClick={() => handleDelete(branch._id)}
-                className="text-sm text-red-600 hover:text-red-800 border border-red-200 px-4 py-1.5 rounded-lg hover:bg-red-50 transition"
-              >
-                Delete
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {isAdmin && selectedUserId && (
+                  <button
+                    onClick={() => navigate(`/dashboard?userId=${branch._id}&from=branches-list&mainBranchId=${selectedUserId}`)}
+                    className="text-sm text-indigo-700 hover:text-indigo-900 border border-indigo-200 px-4 py-1.5 rounded-lg hover:bg-indigo-50 transition"
+                  >
+                    Open Branch Dashboard
+                  </button>
+                )}
+                {isAdmin && selectedUserId && (
+                  <button
+                    onClick={() => navigate(`/profile?userId=${branch._id}&from=branches-list&mainBranchId=${selectedUserId}`)}
+                    className="text-sm text-amber-700 hover:text-amber-900 border border-amber-200 px-4 py-1.5 rounded-lg hover:bg-amber-50 transition"
+                  >
+                    Branch Details
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDelete(branch._id)}
+                  className="text-sm text-red-600 hover:text-red-800 border border-red-200 px-4 py-1.5 rounded-lg hover:bg-red-50 transition"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

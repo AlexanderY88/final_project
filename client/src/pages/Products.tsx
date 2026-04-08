@@ -11,6 +11,7 @@ const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/ap
   .replace(/\/$/, '');
 
 type QuantityModalMode = 'add' | 'subtract' | 'update';
+type ProductsViewMode = 'cards' | 'table';
 
 interface QuantityModalState {
   productId: string;
@@ -81,6 +82,9 @@ const calculateNextQuantity = (modal: QuantityModalState, value: number) => {
   return value;
 };
 
+const shortenDescription = (description: string) =>
+  description.length > 50 ? `${description.slice(0, 50)}...` : description;
+
 const Products: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -91,6 +95,7 @@ const Products: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [quantityModal, setQuantityModal] = useState<QuantityModalState | null>(null);
   const [quantityInput, setQuantityInput] = useState('');
+  const [viewMode, setViewMode] = useState<ProductsViewMode>('cards');
 
   const selectedUserId = searchParams.get('userId') || undefined;
   const adminContextParams = getAdminContextParams(selectedUserId);
@@ -206,12 +211,31 @@ const Products: React.FC = () => {
             <p className="text-sm text-gray-500">{totalProducts} total products</p>
           </div>
         </div>
-        <Link
-          to={`/products/new${adminContextParams}`}
-          className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium"
-        >
-          + New Product
-        </Link>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`px-3 py-2 text-sm transition ${viewMode === 'cards' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+            >
+              Cards
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-2 text-sm transition ${viewMode === 'table' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+            >
+              Table
+            </button>
+          </div>
+
+          <Link
+            to={`/products/new${adminContextParams}`}
+            className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium"
+          >
+            + New Product
+          </Link>
+        </div>
       </div>
 
       {/* Search */}
@@ -230,102 +254,238 @@ const Products: React.FC = () => {
         <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">{error}</div>
       )}
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((product) => {
-          const imageUrl = getProductImageUrl(product);
+      {viewMode === 'cards' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((product) => {
+            const imageUrl = getProductImageUrl(product);
 
-          return (
-          <div key={product._id} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden hover:shadow-lg transition flex flex-col h-full">
-            {/* Image */}
-            {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={product.image?.alt || product.product.title}
-                className="w-full h-48 object-cover"
-              />
-            ) : (
-              <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-400">
-                <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+            return (
+            <div key={product._id} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden hover:shadow-lg transition flex flex-col h-full">
+              {/* Image */}
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={product.image?.alt || product.product.title}
+                  className="w-full h-48 object-cover"
+                />
+              ) : (
+                <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-400">
+                  <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              )}
+
+              <div className="p-5 flex-1 flex flex-col">
+                {/* Title & Description - Fixed Height Section */}
+                <div className="min-h-[120px] mb-3">
+                  <h3 className="text-lg font-semibold text-gray-800 line-clamp-2">{product.product.title}</h3>
+                  {product.product.subtitle && (
+                    <p className="text-sm text-gray-500 mt-1 line-clamp-1">{product.product.subtitle}</p>
+                  )}
+                  <p className="text-sm text-gray-600 mt-2 line-clamp-2">{product.product.description}</p>
+                </div>
+
+                {/* Tags */}
+                <div className="mt-2 flex flex-wrap gap-2 mb-4">
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{product.category}</span>
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">{product.supplier}</span>
+                </div>
+
+                {/* Quantity Controls */}
+                <div className="mt-auto">
+                  <div className="text-lg font-bold text-gray-800 mb-3">Qty: {product.quantity}</div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'add')}
+                      className="bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition text-sm font-medium"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'subtract')}
+                      className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                    >
+                      Sub
+                    </button>
+                    <button
+                      onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'update')}
+                      className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
+                    >
+                      Update
+                    </button>
+                  </div>
+                </div>
+
+                {/* Branch Info */}
+                <div className="mt-4 pt-3 border-t border-gray-200 text-xs text-gray-400">
+                  <p>Branch ID: {product.createdBy?.userId || 'N/A'}</p>
+                  <p>By: {product.createdBy?.username || 'Unknown'} ({product.createdBy?.role || 'N/A'})</p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <Link
+                    to={`/products/${product._id}${adminContextParams}`}
+                    className="text-center text-sm bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition font-medium"
+                  >
+                    Details
+                  </Link>
+                  <Link
+                    to={`/products/${product._id}/edit${adminContextParams}`}
+                    className="text-center text-sm bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg hover:bg-yellow-100 transition font-medium"
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(product._id)}
+                    className="text-sm bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-100 transition font-medium"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+          <div className="divide-y divide-gray-200 md:hidden">
+            {filtered.map((product) => (
+              <div key={product._id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Title</p>
+                    <p className="text-sm font-semibold text-gray-800 mt-0.5">{product.product.title}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Qty</p>
+                    <p className="text-sm font-bold text-gray-800 mt-0.5">{product.quantity}</p>
+                  </div>
+                </div>
 
-            <div className="p-5 flex-1 flex flex-col">
-              {/* Title & Description - Fixed Height Section */}
-              <div className="min-h-[120px] mb-3">
-                <h3 className="text-lg font-semibold text-gray-800 line-clamp-2">{product.product.title}</h3>
-                {product.product.subtitle && (
-                  <p className="text-sm text-gray-500 mt-1 line-clamp-1">{product.product.subtitle}</p>
-                )}
-                <p className="text-sm text-gray-600 mt-2 line-clamp-2">{product.product.description}</p>
-              </div>
+                <div className="mt-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Description</p>
+                  <p className="text-sm text-gray-700 mt-0.5">{shortenDescription(product.product.description)}</p>
+                </div>
 
-              {/* Tags */}
-              <div className="mt-2 flex flex-wrap gap-2 mb-4">
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{product.category}</span>
-                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">{product.supplier}</span>
-              </div>
+                <div className="mt-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Supplier</p>
+                  <p className="text-sm text-gray-700 mt-0.5">{product.supplier}</p>
+                </div>
 
-              {/* Quantity Controls */}
-              <div className="mt-auto">
-                <div className="text-lg font-bold text-gray-800 mb-3">Qty: {product.quantity}</div>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <Link
+                    to={`/products/${product._id}${adminContextParams}`}
+                    className="text-center bg-blue-600 text-white px-2.5 py-2 rounded-lg hover:bg-blue-700 transition text-xs font-medium"
+                  >
+                    Details
+                  </Link>
+                  <Link
+                    to={`/products/${product._id}/edit${adminContextParams}`}
+                    className="text-center bg-yellow-600 text-white px-2.5 py-2 rounded-lg hover:bg-yellow-700 transition text-xs font-medium"
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(product._id)}
+                    className="bg-red-600 text-white px-2.5 py-2 rounded-lg hover:bg-red-700 transition text-xs font-medium"
+                  >
+                    Delete
+                  </button>
+                </div>
 
-                <div className="flex gap-2">
+                <div className="mt-2 grid grid-cols-3 gap-2">
                   <button
                     onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'add')}
-                    className="bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition text-sm font-medium"
+                    className="bg-green-600 text-white px-2.5 py-2 rounded-lg hover:bg-green-700 transition text-xs font-medium"
                   >
                     Add
                   </button>
                   <button
                     onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'subtract')}
-                    className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                    className="bg-red-600 text-white px-2.5 py-2 rounded-lg hover:bg-red-700 transition text-xs font-medium"
                   >
                     Sub
                   </button>
                   <button
                     onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'update')}
-                    className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
+                    className="bg-indigo-600 text-white px-2.5 py-2 rounded-lg hover:bg-indigo-700 transition text-xs font-medium"
                   >
                     Update
                   </button>
                 </div>
               </div>
-
-              {/* Branch Info */}
-              <div className="mt-4 pt-3 border-t border-gray-200 text-xs text-gray-400">
-                <p>Branch: {product.branch_address.city}, {product.branch_address.country}</p>
-                <p>By: {product.createdBy?.username || 'Unknown'} ({product.createdBy?.role})</p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <Link
-                  to={`/products/${product._id}${adminContextParams}`}
-                  className="text-center text-sm bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition font-medium"
-                >
-                  Details
-                </Link>
-                <Link
-                  to={`/products/${product._id}/edit${adminContextParams}`}
-                  className="text-center text-sm bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg hover:bg-yellow-100 transition font-medium"
-                >
-                  Edit
-                </Link>
-                <button
-                  onClick={() => handleDelete(product._id)}
-                  className="text-sm bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg hover:bg-red-100 transition font-medium"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
+            ))}
           </div>
-          );
-        })}
-      </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="min-w-[1100px] w-full table-auto divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
+                  <th className="w-24 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                  <th className="w-[460px] px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filtered.map((product) => (
+                  <tr key={product._id} className="hover:bg-gray-50 transition">
+                    <td className="px-3 py-3 align-top text-left text-sm font-medium text-gray-800">{product.product.title}</td>
+                    <td className="px-3 py-3 align-top text-left text-sm text-gray-600">{shortenDescription(product.product.description)}</td>
+                    <td className="px-3 py-3 align-top text-left text-sm text-gray-700">{product.supplier}</td>
+                    <td className="px-3 py-3 text-sm text-center font-semibold text-gray-800">{product.quantity}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-nowrap items-center justify-end gap-1.5">
+                        <Link
+                          to={`/products/${product._id}${adminContextParams}`}
+                          className="bg-blue-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-blue-700 transition text-xs font-medium whitespace-nowrap"
+                        >
+                          Details
+                        </Link>
+                        <Link
+                          to={`/products/${product._id}/edit${adminContextParams}`}
+                          className="bg-yellow-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-yellow-700 transition text-xs font-medium whitespace-nowrap"
+                        >
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'add')}
+                          className="bg-green-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-green-700 transition text-xs font-medium whitespace-nowrap"
+                        >
+                          Add
+                        </button>
+                        <button
+                          onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'subtract')}
+                          className="bg-red-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-red-700 transition text-xs font-medium whitespace-nowrap"
+                        >
+                          Sub
+                        </button>
+                        <button
+                          onClick={() => openQuantityModal(product._id, product.quantity, product.product.title, 'update')}
+                          className="bg-indigo-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-indigo-700 transition text-xs font-medium whitespace-nowrap"
+                        >
+                          Update
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product._id)}
+                          className="bg-red-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-red-700 transition text-xs font-medium whitespace-nowrap"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Empty State */}
       {filtered.length === 0 && !isLoading && (

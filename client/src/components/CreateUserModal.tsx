@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import * as userService from '../services/users';
 import { User } from '../types/auth';
-import { createUserSchema, validateWithJoi } from '../utils/validation';
+import { createUserSchema, getFieldErrorWithJoi, validateWithJoi } from '../utils/validation';
 
 type UserRole = 'admin' | 'main_brunch' | 'user';
 
@@ -83,18 +83,24 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
+    const nextFormData = {
+      ...formData,
       [name]: value,
+    };
+
+    setFormData(nextFormData);
+
+    const normalizedValidationValue = {
+      ...nextFormData,
+      houseNumber: nextFormData.houseNumber === '' ? undefined : Number(nextFormData.houseNumber),
+      zip: nextFormData.zip === '' ? '' : Number(nextFormData.zip),
+    };
+
+    const fieldError = getFieldErrorWithJoi(createUserSchema, normalizedValidationValue, name);
+    setErrors(prev => ({
+      ...prev,
+      [name]: fieldError,
     }));
-    // Clear error for this field when user starts typing
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -139,6 +145,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   if (!isOpen) return null;
 
+  const isBranchRole = formData.role === 'main_brunch' || formData.role === 'user';
+  const firstNameLabel = isBranchRole ? 'Branch Name *' : 'First Name *';
+  const lastNameLabel = isBranchRole ? 'Manager *' : 'Last Name *';
+  const firstNamePlaceholder = isBranchRole ? 'e.g. North Branch' : 'e.g. John';
+  const lastNamePlaceholder = isBranchRole ? 'e.g. David Cohen' : 'e.g. Doe';
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full max-h-screen overflow-y-auto">
@@ -160,17 +172,17 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* First Name */}
+            {/* First Name (Branch Name for branch roles) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                First Name *
+                {firstNameLabel}
               </label>
               <input
                 type="text"
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleChange}
-                placeholder="e.g. John"
+                placeholder={firstNamePlaceholder}
                 className={getInputClass(!!errors.firstName)}
               />
               {errors.firstName && (
@@ -178,17 +190,17 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               )}
             </div>
 
-            {/* Last Name */}
+            {/* Last Name (Manager for branch roles) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Last Name *
+                {lastNameLabel}
               </label>
               <input
                 type="text"
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleChange}
-                placeholder="e.g. Doe"
+                placeholder={lastNamePlaceholder}
                 className={getInputClass(!!errors.lastName)}
               />
               {errors.lastName && (
@@ -284,7 +296,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   <option value="">Select a main branch</option>
                   {mainBranches.map(branch => (
                     <option key={branch._id} value={branch._id}>
-                      {branch.name?.first} {branch.name?.last} ({branch.email})
+                        {branch.name?.first} | Manager: {branch.name?.last} ({branch.email})
                     </option>
                   ))}
                 </select>

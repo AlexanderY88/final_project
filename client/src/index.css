@@ -82,3 +82,47 @@ html.dark textarea::placeholder {
 html.dark .mailbox-message-row:hover {
   background-color: #1e293b !important;
 }
+
+/* Keep branch hover readable in dark mode when hover background becomes light. */
+html.dark .branch-accordion-trigger:hover {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+html.dark .branch-accordion-trigger:hover *,
+html.dark .branch-accordion-trigger:hover p,
+html.dark .branch-accordion-trigger:hover span,
+html.dark .branch-accordion-trigger:hover div {
+  color: #f8fafc !important;
+}
+
+html.dark .branch-accordion-trigger:hover .bg-white {
+  background-color: #475569 !important;
+}
+
+/* Keep admin users table hover readable in dark mode. */
+html.dark .admin-users-row:hover {
+  background-color: #334155 !important;
+}
+
+html.dark .admin-users-row:hover p,
+html.dark .admin-users-row:hover td {
+  color: #f8fafc !important;
+}
+
+/* Keep History table row hover dark in dark mode. */
+html.dark .history-log-row:hover {
+  background-color: #334155 !important;
+}
+
+/* Dashboard: improve contrast for main branch details and child branches in dark mode. */
+html.dark .main-branch-details-card,
+html.dark .child-branches-card {
+  background-color: #1f2937 !important;
+  border: 1px solid #334155;
+}
+
+html.dark .child-branch-item {
+  background-color: #273449;
+  border-color: #475569 !important;
+}

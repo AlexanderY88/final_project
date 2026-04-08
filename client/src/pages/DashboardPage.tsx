@@ -17,6 +17,23 @@ const getUserRoleLabel = (targetUser: {
   return 'Child Branch';
 };
 
+const getDisplayIdentity = (targetUser: {
+  isAdmin?: boolean;
+  name?: { first?: string; last?: string };
+} | null) => {
+  if (!targetUser) return { primary: '-', secondary: '' };
+  if (targetUser.isAdmin) {
+    return {
+      primary: `${targetUser.name?.first || ''} ${targetUser.name?.last || ''}`.trim(),
+      secondary: '',
+    };
+  }
+  return {
+    primary: `Branch: ${targetUser.name?.first || '-'}`,
+    secondary: `Manager: ${targetUser.name?.last || '-'}`,
+  };
+};
+
 const adminContextPath = (basePath: string, userId: string) =>
   `${basePath}?userId=${userId}&from=admin-users`;
 
@@ -39,6 +56,8 @@ const Dashboard: React.FC = () => {
   const [resumeUserId, setResumeUserId] = useState<string | null>(null);
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [resumePromptHandled, setResumePromptHandled] = useState(false);
+  const source = searchParams.get('from');
+  const mainBranchId = searchParams.get('mainBranchId');
 
   useEffect(() => {
     if (!user) {
@@ -133,7 +152,6 @@ const Dashboard: React.FC = () => {
   };
 
   const handleAdminBackToSearch = () => {
-    const source = searchParams.get('from');
     if (source === 'admin-users') {
       navigate('/admin/users');
       return;
@@ -143,6 +161,15 @@ const Dashboard: React.FC = () => {
     setAdminSearch('');
     localStorage.removeItem(ADMIN_LAST_USER_KEY);
     setSearchParams({});
+  };
+
+  const handleBackFromSelectedUser = () => {
+    if (source === 'branches-list' && mainBranchId) {
+      navigate(`/branches?userId=${mainBranchId}&from=admin-users`);
+      return;
+    }
+
+    handleAdminBackToSearch();
   };
 
   const handleResumeYes = () => {
@@ -201,10 +228,10 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={handleAdminBackToSearch}
+                  onClick={handleBackFromSelectedUser}
                   className="border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm"
                 >
-                  ← Back To All Users
+                  {source === 'branches-list' && mainBranchId ? '← Back To Branches List' : '← Back To All Users'}
                 </button>
                 <span className="text-sm text-gray-500">Viewing as: {adminSelectedUser.email}</span>
               </div>
@@ -212,7 +239,8 @@ const Dashboard: React.FC = () => {
               <div className="bg-white rounded-xl shadow-md p-6">
                 <h2 className="text-lg font-semibold text-gray-800 mb-4">Selected User Details</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-gray-500">Name: </span><span>{adminSelectedUser.name.first} {adminSelectedUser.name.last}</span></div>
+                  <div><span className="text-gray-500">{adminSelectedUser.isAdmin ? 'Name' : 'Branch Name'}: </span><span>{adminSelectedUser.name.first}</span></div>
+                  <div><span className="text-gray-500">{adminSelectedUser.isAdmin ? 'Last Name' : 'Manager'}: </span><span>{adminSelectedUser.name.last}</span></div>
                   <div><span className="text-gray-500">Email: </span><span>{adminSelectedUser.email}</span></div>
                   <div><span className="text-gray-500">Phone: </span><span>{adminSelectedUser.phone}</span></div>
                   <div><span className="text-gray-500">Location: </span><span>{adminSelectedUser.address.city}, {adminSelectedUser.address.country}</span></div>
@@ -220,7 +248,6 @@ const Dashboard: React.FC = () => {
                     <span className="text-gray-500">Role: </span>
                     <span>{getUserRoleLabel(adminSelectedUser)}</span>
                   </div>
-                  <div><span className="text-gray-500">Business: </span><span>{adminSelectedUser.name.first} {adminSelectedUser.name.last}</span></div>
                 </div>
 
                 <div className="mt-6 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-xs text-indigo-800">
@@ -228,12 +255,6 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <Link
-                    to={adminContextPath('/dashboard', adminSelectedUser._id)}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm text-center"
-                  >
-                    Dashboard
-                  </Link>
                   <Link
                     to={adminContextPath('/products', adminSelectedUser._id)}
                     className="bg-white border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm text-center"
@@ -252,7 +273,7 @@ const Dashboard: React.FC = () => {
                     to={adminContextPath('/logs', adminSelectedUser._id)}
                     className="bg-white border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm text-center"
                   >
-                    Logs
+                    History
                   </Link>
                   <Link
                     to={adminContextPath('/profile', adminSelectedUser._id)}
@@ -271,7 +292,7 @@ const Dashboard: React.FC = () => {
                   </Link>
                   <button
                     type="button"
-                    onClick={handleAdminBackToSearch}
+                    onClick={handleBackFromSelectedUser}
                     className="bg-white border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm"
                   >
                     Back
@@ -302,7 +323,10 @@ const Dashboard: React.FC = () => {
                       onClick={() => handleSelectAdminUser(u._id)}
                       className="w-full text-left border border-gray-200 rounded-lg px-4 py-3 hover:bg-gray-50 transition"
                     >
-                      <p className="font-medium text-gray-800">{u.name.first} {u.name.last}</p>
+                      <p className="font-medium text-gray-800">{getDisplayIdentity(u).primary}</p>
+                      {getDisplayIdentity(u).secondary && (
+                        <p className="text-xs text-gray-500">{getDisplayIdentity(u).secondary}</p>
+                      )}
                       <p className="text-xs text-gray-500">{u.email} • {u._id}</p>
                     </button>
                   ))}
@@ -318,24 +342,18 @@ const Dashboard: React.FC = () => {
       ) : (
         <>
           <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white mb-8">
-            <h1 className="text-3xl font-bold">Welcome, {user.name.first}!</h1>
+            <h1 className="text-3xl font-bold">Welcome, {user.name.last}!</h1>
             <p className="mt-1 text-indigo-100">{role} • {user.email}</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-            <div className="flex items-center justify-between mb-4">
+          <div className="main-branch-details-card bg-white rounded-xl shadow-md p-6 mb-8">
+            <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-800">Main Branch Details</h2>
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm"
-              >
-                ← Back
-              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div><span className="text-gray-500">Name: </span><span>{user.name.first} {user.name.last}</span></div>
+              <div><span className="text-gray-500">Business Name: </span><span>{user.name.first}</span></div>
+              <div><span className="text-gray-500">Manager: </span><span>{user.name.last}</span></div>
               <div><span className="text-gray-500">Email: </span><span>{user.email}</span></div>
               <div><span className="text-gray-500">Phone: </span><span>{user.phone || 'Not set'}</span></div>
               <div><span className="text-gray-500">Location: </span><span>{user.address.city}, {user.address.country}</span></div>
@@ -343,7 +361,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {user.isMainBrunch ? (
-            <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="child-branches-card bg-white rounded-xl shadow-md p-6">
               <h2 className="text-lg font-semibold text-gray-800 mb-4">Child Branches</h2>
 
               {usersLoading && <p className="text-sm text-gray-500">Loading child branches...</p>}
@@ -358,7 +376,7 @@ const Dashboard: React.FC = () => {
               ) : (
                 <div className="space-y-2">
                   {childBranches.map((branch) => (
-                    <div key={branch._id} className="border border-gray-200 rounded-lg p-3">
+                    <div key={branch._id} className="child-branch-item border border-gray-200 rounded-lg p-3">
                       <p className="font-medium text-gray-800">{branch.name.first} {branch.name.last}</p>
                       <p className="text-xs text-gray-500">{branch.email}</p>
                     </div>
@@ -414,10 +432,11 @@ const Dashboard: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => toggleMainBranch(mainBranch._id)}
-                      className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition"
+                      className="branch-accordion-trigger w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition"
                     >
                       <div className="text-left">
-                        <p className="font-medium text-gray-800">{mainBranch.name.first} {mainBranch.name.last}</p>
+                        <p className="font-medium text-gray-800">Branch: {mainBranch.name.first}</p>
+                        <p className="text-xs text-gray-500">Manager: {mainBranch.name.last}</p>
                         <p className="text-xs text-gray-500">{mainBranch.email}</p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -434,7 +453,7 @@ const Dashboard: React.FC = () => {
                           <ul className="space-y-2">
                             {children.map((child) => (
                               <li key={child._id} className="text-sm text-gray-700 flex items-center justify-between">
-                                <span>{child.name.first} {child.name.last}</span>
+                                <span>Branch: {child.name.first} | Manager: {child.name.last}</span>
                                 <span className="text-xs text-gray-500">{child.email}</span>
                               </li>
                             ))}

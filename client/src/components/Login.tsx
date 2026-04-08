@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { login, clearError } from '../features/auth/authSlice';
 import { LoginCredentials } from '../types/auth';
-import { getInputClassName, validateWithJoi, loginSchema } from '../utils/validation';
+import { getFieldErrorWithJoi, getInputClassName, validateWithJoi, loginSchema } from '../utils/validation';
 
 const Login: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -16,14 +16,18 @@ const Login: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setCredentials(prev => ({
-      ...prev,
+    const nextCredentials = {
+      ...credentials,
       [name]: value,
-    }));
+    };
 
-    if (validationErrors[name]) {
-      setValidationErrors((prev) => ({ ...prev, [name]: '' }));
-    }
+    setCredentials(nextCredentials);
+
+    const fieldError = getFieldErrorWithJoi(loginSchema, nextCredentials, name);
+    setValidationErrors((prev) => ({
+      ...prev,
+      [name]: fieldError,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

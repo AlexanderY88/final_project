@@ -42,7 +42,14 @@ export interface LoginCredentials {
 export interface RegisterData {
   email: string;
   password: string;
+  passwordConfirm?: string;
   firstName: string;
   lastName: string;
   role?: string;
+  phone: string;
+  country: string;
+  city: string;
+  street: string;
+  houseNumber: string;
+  zip: string;
 }

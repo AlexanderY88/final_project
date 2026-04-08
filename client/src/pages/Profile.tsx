@@ -6,6 +6,7 @@ import * as userService from '../services/users';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { User } from '../types/auth';
+import { getFieldErrorWithJoi, getInputClassName, profileSchema, validateWithJoi } from '../utils/validation';
 
 const Profile: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -18,12 +19,14 @@ const Profile: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingRoleChange, setPendingRoleChange] = useState<'admin' | 'main_brunch' | 'user' | null>(null);
   const [roleChanging, setRoleChanging] = useState(false);
 
   const selectedUserId = searchParams.get('userId');
   const from = searchParams.get('from');
+  const mainBranchId = searchParams.get('mainBranchId');
   const isAdminEditingOtherUser = !!(user?.isAdmin && selectedUserId);
   const currentProfileUser = isAdminEditingOtherUser ? profileUser : user;
 
@@ -102,7 +105,17 @@ const Profile: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    const nextForm = { ...form, [name]: value };
+    setForm(nextForm);
+
+    const normalizedForValidation = {
+      ...nextForm,
+      houseNumber: Number(nextForm.houseNumber),
+      zip: Number(nextForm.zip),
+    };
+
+    const fieldError = getFieldErrorWithJoi(profileSchema, normalizedForValidation, name);
+    setValidationErrors((prev) => ({ ...prev, [name]: fieldError }));
   };
 
   const getRoleValue = (u: User) => {
@@ -131,6 +144,17 @@ const Profile: React.FC = () => {
 
   const handleSave = () => {
     if (!currentProfileUser) return;
+
+    const nextErrors = validateWithJoi(profileSchema, {
+      ...form,
+      houseNumber: Number(form.houseNumber),
+      zip: Number(form.zip),
+    });
+    setValidationErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     setShowConfirm(true);
   };
 
@@ -188,6 +212,9 @@ const Profile: React.FC = () => {
 
   const roleLabel = currentProfileUser.isAdmin ? 'Admin' : currentProfileUser.isMainBrunch ? 'Main Branch' : 'Branch User';
   const roleLabelMap: Record<string, string> = { admin: 'Admin', main_brunch: 'Main Branch', user: 'Child Branch' };
+  const isBranchProfileUser = !currentProfileUser.isAdmin;
+  const firstNameLabel = isBranchProfileUser ? 'Branch Name' : 'First Name';
+  const lastNameLabel = isBranchProfileUser ? 'Manager' : 'Last Name';
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -234,29 +261,31 @@ const Profile: React.FC = () => {
 
       <div className="bg-white rounded-xl shadow-md p-6">
         {/* Personal Info */}
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Personal Information</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">{isBranchProfileUser ? 'Branch Information' : 'Personal Information'}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-600 mb-1">First Name</label>
+            <label htmlFor="firstName" className="block text-sm font-medium text-gray-600 mb-1">{firstNameLabel}</label>
             <input
               id="firstName"
               name="firstName"
               value={form.firstName}
               onChange={handleChange}
               disabled={!editing}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className={getInputClassName(!!validationErrors.firstName, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
             />
+            {validationErrors.firstName && <p className="mt-1 text-sm text-red-600">{validationErrors.firstName}</p>}
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-600 mb-1">Last Name</label>
+            <label htmlFor="lastName" className="block text-sm font-medium text-gray-600 mb-1">{lastNameLabel}</label>
             <input
               id="lastName"
               name="lastName"
               value={form.lastName}
               onChange={handleChange}
               disabled={!editing}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className={getInputClassName(!!validationErrors.lastName, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
             />
+            {validationErrors.lastName && <p className="mt-1 text-sm text-red-600">{validationErrors.lastName}</p>}
           </div>
           <div>
             <label htmlFor="middleName" className="block text-sm font-medium text-gray-600 mb-1">Middle Name</label>
@@ -266,8 +295,9 @@ const Profile: React.FC = () => {
               value={form.middleName}
               onChange={handleChange}
               disabled={!editing}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className={getInputClassName(!!validationErrors.middleName, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
             />
+            {validationErrors.middleName && <p className="mt-1 text-sm text-red-600">{validationErrors.middleName}</p>}
           </div>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-600 mb-1">Email</label>
@@ -277,8 +307,9 @@ const Profile: React.FC = () => {
               value={form.email}
               onChange={handleChange}
               disabled={!editing}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className={getInputClassName(!!validationErrors.email, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
             />
+            {validationErrors.email && <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>}
           </div>
           <div>
             <label htmlFor="phone" className="block text-sm font-medium text-gray-600 mb-1">Phone</label>
@@ -288,8 +319,9 @@ const Profile: React.FC = () => {
               value={form.phone}
               onChange={handleChange}
               disabled={!editing}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className={getInputClassName(!!validationErrors.phone, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
             />
+            {validationErrors.phone && <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>}
           </div>
         </div>
 
@@ -298,27 +330,33 @@ const Profile: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="country" className="block text-sm font-medium text-gray-600 mb-1">Country</label>
-            <input id="country" name="country" value={form.country} onChange={handleChange} disabled={!editing} className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <input id="country" name="country" value={form.country} onChange={handleChange} disabled={!editing} className={getInputClassName(!!validationErrors.country, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')} />
+            {validationErrors.country && <p className="mt-1 text-sm text-red-600">{validationErrors.country}</p>}
           </div>
           <div>
             <label htmlFor="city" className="block text-sm font-medium text-gray-600 mb-1">City</label>
-            <input id="city" name="city" value={form.city} onChange={handleChange} disabled={!editing} className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <input id="city" name="city" value={form.city} onChange={handleChange} disabled={!editing} className={getInputClassName(!!validationErrors.city, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')} />
+            {validationErrors.city && <p className="mt-1 text-sm text-red-600">{validationErrors.city}</p>}
           </div>
           <div>
             <label htmlFor="street" className="block text-sm font-medium text-gray-600 mb-1">Street</label>
-            <input id="street" name="street" value={form.street} onChange={handleChange} disabled={!editing} className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <input id="street" name="street" value={form.street} onChange={handleChange} disabled={!editing} className={getInputClassName(!!validationErrors.street, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')} />
+            {validationErrors.street && <p className="mt-1 text-sm text-red-600">{validationErrors.street}</p>}
           </div>
           <div>
             <label htmlFor="houseNumber" className="block text-sm font-medium text-gray-600 mb-1">House Number</label>
-            <input id="houseNumber" type="number" name="houseNumber" value={form.houseNumber} onChange={handleChange} disabled={!editing} className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <input id="houseNumber" type="number" name="houseNumber" value={form.houseNumber} onChange={handleChange} disabled={!editing} className={getInputClassName(!!validationErrors.houseNumber, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')} />
+            {validationErrors.houseNumber && <p className="mt-1 text-sm text-red-600">{validationErrors.houseNumber}</p>}
           </div>
           <div>
             <label htmlFor="state" className="block text-sm font-medium text-gray-600 mb-1">State</label>
-            <input id="state" name="state" value={form.state} onChange={handleChange} disabled={!editing} className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <input id="state" name="state" value={form.state} onChange={handleChange} disabled={!editing} className={getInputClassName(!!validationErrors.state, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')} />
+            {validationErrors.state && <p className="mt-1 text-sm text-red-600">{validationErrors.state}</p>}
           </div>
           <div>
             <label htmlFor="zip" className="block text-sm font-medium text-gray-600 mb-1">ZIP Code</label>
-            <input id="zip" type="number" name="zip" value={form.zip} onChange={handleChange} disabled={!editing} className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <input id="zip" type="number" name="zip" value={form.zip} onChange={handleChange} disabled={!editing} className={getInputClassName(!!validationErrors.zip, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')} />
+            {validationErrors.zip && <p className="mt-1 text-sm text-red-600">{validationErrors.zip}</p>}
           </div>
         </div>
 
@@ -355,6 +393,11 @@ const Profile: React.FC = () => {
               onClick={() => {
                 if (from === 'admin-users' && selectedUserId) {
                   navigate(`/dashboard?userId=${selectedUserId}&from=admin-users`);
+                  return;
+                }
+
+                if (from === 'branches-list' && mainBranchId) {
+                  navigate(`/branches?userId=${mainBranchId}&from=admin-users`);
                   return;
                 }
 

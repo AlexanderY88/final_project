@@ -82,31 +82,6 @@ const productSchema = new mongoose.Schema({
             required: false // When security validation was performed
         }
     },
-    branch_address: {
-        state: {
-            type: String
-        },
-        country: {
-            type: String,
-            required: true
-        },
-        city: {
-            type: String,
-            required: true
-        },
-        street: {
-            type: String,
-            required: true
-        },
-        houseNumber: {
-            type: Number,
-            required: true
-        },
-        zip: {
-            type: Number,
-            required: true
-        }
-    },
     quantity: {
         type: Number, // Changed from Boolean to Number for actual quantity
         required: true,

@@ -49,24 +49,10 @@ const SUPPLIERS = [
     'AutoParts Express', 'HealthFirst Suppliers', 'Global Trading Co', 'Premium Goods Inc'
 ];
 
-// Israeli cities for realistic addresses
-const CITIES = [
-    { city: 'Tel Aviv', state: 'Tel Aviv District' },
-    { city: 'Jerusalem', state: 'Jerusalem District' },
-    { city: 'Haifa', state: 'Haifa District' },
-    { city: 'Rishon LeZion', state: 'Central District' },
-    { city: 'Petah Tikva', state: 'Central District' },
-    { city: 'Ashdod', state: 'Southern District' },
-    { city: 'Netanya', state: 'Central District' },
-    { city: 'Beersheva', state: 'Southern District' }
-];
-
 /**
  * Generate realistic product data
  */
 function generateProduct(title, category, supplier, createdBy, branchLocation) {
-    const randomCity = CITIES[Math.floor(Math.random() * CITIES.length)];
-    
     return {
         product: {
             title: title,
@@ -76,14 +62,6 @@ function generateProduct(title, category, supplier, createdBy, branchLocation) {
         supplier: supplier,
         category: category,
         quantity: Math.floor(Math.random() * 200) + 50, // Random quantity 50-250
-        branch_address: {
-            state: randomCity.state,
-            country: 'Israel',
-            city: randomCity.city,
-            street: `${Math.floor(Math.random() * 50) + 1} ${randomCity.city} Street`,
-            houseNumber: Math.floor(Math.random() * 200) + 1,
-            zip: Math.floor(Math.random() * 90000) + 10000
-        },
         image: {
             url: `https://via.placeholder.com/400x300?text=${encodeURIComponent(title)}`,
             alt: `Image of ${title}`,

@@ -157,38 +157,12 @@ const ProductDetails: React.FC = () => {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-800 mb-3">Branch Address</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm font-medium text-gray-700 mb-1">Country</div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800">{product.branch_address.country}</div>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-700 mb-1">City</div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800">{product.branch_address.city}</div>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-700 mb-1">Street</div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800">{product.branch_address.street}</div>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-700 mb-1">House Number</div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800">{product.branch_address.houseNumber}</div>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-700 mb-1">State</div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800">{product.branch_address.state || '-'}</div>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-700 mb-1">ZIP Code</div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800">{product.branch_address.zip}</div>
-                </div>
-              </div>
-            </div>
-
-            <div>
               <h2 className="text-lg font-semibold text-gray-800 mb-3">Meta</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm font-medium text-gray-700 mb-1">Branch ID</div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800 font-mono break-all">{product.createdBy?.userId || '-'}</div>
+                </div>
                 <div>
                   <div className="text-sm font-medium text-gray-700 mb-1">Created By</div>
                   <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-800">{product.createdBy?.username || '-'}</div>

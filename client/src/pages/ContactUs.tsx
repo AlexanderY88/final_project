@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppSelector } from '../app/hooks';
 import { sendContactMessage } from '../services/messages';
 import { toast } from 'react-toastify';
-import { contactUsSchema, validateWithJoi } from '../utils/validation';
+import { contactUsSchema, getFieldErrorWithJoi, validateWithJoi } from '../utils/validation';
 
 const SUBJECTS = [
   { value: 'general', label: 'General Inquiry' },
@@ -97,15 +97,27 @@ const ContactUs: React.FC = () => {
   const [submittedMessageNumber, setSubmittedMessageNumber] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (!user) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      name: `${user.name.first} ${user.name.last}`.trim(),
+      email: user.email || '',
+    }));
+  }, [user]);
+
+  const isFormValid = Object.keys(validateWithJoi(contactUsSchema, formData)).length === 0;
+
   const handleInputChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const nextFormData = { ...formData, [name]: value };
+    setFormData(nextFormData);
 
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }));
-    }
+    const fieldError = getFieldErrorWithJoi(contactUsSchema, nextFormData, name);
+    setErrors((prev) => ({ ...prev, [name]: fieldError }));
   };
 
   const validate = (): boolean => {
@@ -198,9 +210,10 @@ const ContactUs: React.FC = () => {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
+                      disabled
                       maxLength={100}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ${errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                      placeholder="Your name"
+                      className={`w-full px-4 py-3 border rounded-lg transition duration-200 ${errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'} disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed`}
+                      placeholder="Name from your account"
                     />
                     {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
                   </div>
@@ -215,9 +228,10 @@ const ContactUs: React.FC = () => {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
+                      disabled
                       maxLength={200}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                      placeholder="your@email.com"
+                      className={`w-full px-4 py-3 border rounded-lg transition duration-200 ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'} disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed`}
+                      placeholder="Email from your account"
                     />
                     {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
                   </div>
@@ -263,8 +277,8 @@ const ContactUs: React.FC = () => {
 
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98]"
+                    disabled={loading || !isFormValid}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed"
                   >
                     {loading ? 'Sending...' : 'Send Message'}
                   </button>

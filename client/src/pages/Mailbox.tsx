@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../app/hooks';
 import { getMessages, closeMessage, reopenMessage, addMessageComment, ContactMessage } from '../services/messages';
 import { toast } from 'react-toastify';
-
-const SAFE_TEXT_REGEX = /^[A-Za-z0-9 .,?!]*$/;
+import { mailboxCommentSchema, mailboxOptionalCommentSchema, mailboxSearchSchema, validateWithJoi } from '../utils/validation';
 
 const SUBJECT_LABELS: Record<string, string> = {
   general: 'General Inquiry',
@@ -56,18 +55,18 @@ const MessageDetail: React.FC<MessageDetailProps> = ({ msg, onClose, onMessageUp
   const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setComment(val);
-    if (val && !SAFE_TEXT_REGEX.test(val)) {
-      setCommentError('Comment may only contain letters, digits, spaces, and . , ? !');
-    } else {
-      setCommentError('');
-    }
+
+    const errors = validateWithJoi(mailboxOptionalCommentSchema, { adminComment: val });
+    setCommentError(errors.adminComment || '');
   };
 
   const handleClose = async () => {
-    if (comment && !SAFE_TEXT_REGEX.test(comment)) {
-      setCommentError('Comment may only contain letters, digits, spaces, and . , ? !');
+    const closeErrors = validateWithJoi(mailboxOptionalCommentSchema, { adminComment: comment });
+    if (closeErrors.adminComment) {
+      setCommentError(closeErrors.adminComment);
       return;
     }
+
     setClosing(true);
     try {
       const res = await closeMessage(msg._id, String(comment).trim());
@@ -96,13 +95,9 @@ const MessageDetail: React.FC<MessageDetailProps> = ({ msg, onClose, onMessageUp
   const handleAddComment = async () => {
     const nextComment = String(comment).trim();
 
-    if (!nextComment) {
-      setCommentError('Comment is required.');
-      return;
-    }
-
-    if (!SAFE_TEXT_REGEX.test(nextComment)) {
-      setCommentError('Comment may only contain letters, digits, spaces, and . , ? !');
+    const addErrors = validateWithJoi(mailboxCommentSchema, { adminComment: nextComment });
+    if (addErrors.adminComment) {
+      setCommentError(addErrors.adminComment);
       return;
     }
 
@@ -262,9 +257,9 @@ const Mailbox: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<ContactMessage | null>(null);
 
-  // Admin guard
+  // Guard: allow authenticated users only (admin/main branch/child branch)
   useEffect(() => {
-    if (!user?.isAdmin) navigate('/');
+    if (!user) navigate('/');
   }, [user, navigate]);
 
   const fetchMessages = useCallback(async () => {
@@ -308,6 +303,13 @@ const Mailbox: React.FC = () => {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const searchErrors = validateWithJoi(mailboxSearchSchema, { search: searchInput });
+    if (searchErrors.search) {
+      toast.error(searchErrors.search);
+      return;
+    }
+
     setSearch(searchInput.trim());
     setPage(1);
   };
@@ -336,7 +338,7 @@ const Mailbox: React.FC = () => {
     setSelected(updated);
   };
 
-  if (!user?.isAdmin) return null;
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">

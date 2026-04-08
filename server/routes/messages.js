@@ -47,13 +47,23 @@ function isAdmin(req) {
   return req.user?.role === 'admin';
 }
 
-function requireAdmin(req, res) {
-  if (!isAdmin(req)) {
+function canUseMailbox(req) {
+  return !!req.user?._id;
+}
+
+function requireMailboxAccess(req, res) {
+  if (!canUseMailbox(req)) {
     res.status(403).json({ message: 'Access denied' });
     return false;
   }
 
   return true;
+}
+
+function canAccessMessage(req, message) {
+  if (isAdmin(req)) return true;
+  if (!message?.userId) return false;
+  return String(message.userId) === String(req.user?._id);
 }
 
 function getValidationError(schema, payload) {
@@ -134,10 +144,10 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/messages – list messages (admin only)
+// GET /api/messages – list messages (admin/main_brunch/user)
 // Query: status (active|open|reopened|closed), subject (general|support|feedback|other), page (1-based), search
 router.get('/', authMiddleware, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireMailboxAccess(req, res)) return;
 
   try {
     await Message.assignMissingNumbers();
@@ -155,6 +165,10 @@ router.get('/', authMiddleware, async (req, res) => {
     const query = {
       status: getStatusFilter(statusParam),
     };
+
+    if (!isAdmin(req)) {
+      query.userId = req.user._id;
+    }
 
     const subjectFilterValues = getSubjectFilter(subjectParam);
     if (subjectFilterValues) {
@@ -191,9 +205,9 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// PATCH /api/messages/:id/close – close a message with optional admin comment (admin only)
+// PATCH /api/messages/:id/close – close a message with optional comment
 router.patch('/:id/close', authMiddleware, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireMailboxAccess(req, res)) return;
 
   try {
     const validationError = getValidationError(closeMessageSchema, req.body);
@@ -201,6 +215,7 @@ router.patch('/:id/close', authMiddleware, async (req, res) => {
 
     const msg = await findMessageByIdOrSend404(res, req.params.id);
     if (!msg) return;
+    if (!canAccessMessage(req, msg)) return res.status(403).json({ message: 'Access denied' });
     if (msg.status === 'closed') return res.status(400).json({ message: 'Message is already closed' });
 
     await ensureMessageNumber(msg);
@@ -228,9 +243,9 @@ router.patch('/:id/close', authMiddleware, async (req, res) => {
   }
 });
 
-// PATCH /api/messages/:id/comment – add an admin comment without changing status (admin only)
+// PATCH /api/messages/:id/comment – add a comment without changing status
 router.patch('/:id/comment', authMiddleware, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireMailboxAccess(req, res)) return;
 
   try {
     const validationError = getValidationError(addCommentSchema, req.body);
@@ -238,6 +253,7 @@ router.patch('/:id/comment', authMiddleware, async (req, res) => {
 
     const msg = await findMessageByIdOrSend404(res, req.params.id);
     if (!msg) return;
+    if (!canAccessMessage(req, msg)) return res.status(403).json({ message: 'Access denied' });
 
     await ensureMessageNumber(msg);
 
@@ -258,13 +274,14 @@ router.patch('/:id/comment', authMiddleware, async (req, res) => {
   }
 });
 
-// PATCH /api/messages/:id/reopen – reopen a closed message (admin only)
+// PATCH /api/messages/:id/reopen – reopen a closed message
 router.patch('/:id/reopen', authMiddleware, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  if (!requireMailboxAccess(req, res)) return;
 
   try {
     const msg = await findMessageByIdOrSend404(res, req.params.id);
     if (!msg) return;
+    if (!canAccessMessage(req, msg)) return res.status(403).json({ message: 'Access denied' });
     if (msg.status !== 'closed') {
       return res.status(400).json({ message: 'Only closed messages can be reopened' });
     }

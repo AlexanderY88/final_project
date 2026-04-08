@@ -131,7 +131,6 @@ async function seedDatabase() {
                     supplier: "TechCorp",
                     category: "Electronics",
                     image: { url: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=500", imageType: "url", alt: "Laptop image" },
-                    branch_address: { country: "Israel", city: "Netanya", street: "Warehouse", houseNumber: 1, zip: 12345 },
                     quantity: 50,
                     createdBy: {
                         userId: mainBranch._id,
@@ -145,7 +144,6 @@ async function seedDatabase() {
                     supplier: "HomeStyle",
                     category: "Furniture",
                     image: { url: "https://images.unsplash.com/photo-1505797149-43b0069ec26b?w=500", imageType: "url", alt: "Chair image" },
-                    branch_address: { country: "Israel", city: "Netanya", street: "Warehouse", houseNumber: 1, zip: 12345 },
                     quantity: 20,
                     createdBy: {
                         userId: mainBranch._id,

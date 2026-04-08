@@ -10,27 +10,28 @@ const { logProductOperation, logQuantityChange } = require('../src/middleware/lo
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
+const LEGACY_EMPTY_ALT_VALUES = new Set(['no image uploaded']);
+
+const sanitizeImageAlt = (value) => {
+    const trimmed = (value || '').trim();
+    if (!trimmed) return '';
+    return LEGACY_EMPTY_ALT_VALUES.has(trimmed.toLowerCase()) ? '' : trimmed;
+};
 
 // Joi Schema for Product Validation
 const checkProductBody = joi.object({
     title: joi.string().required().min(2).max(100),
-    subtitle: joi.string().optional().max(200),
-    description: joi.string().required().min(10).max(1000),
-    supplier: joi.string().required().min(2).max(100),
-    category: joi.string().required().min(2).max(50),
+    subtitle: joi.string().allow('').optional().max(256),
+    description: joi.string().required().min(10).max(516),
+    supplier: joi.string().required().min(1).max(50),
+    category: joi.string().required().min(1).max(50),
     quantity: joi.number().integer().min(0).default(0),
-    // Address fields
-    state: joi.string().allow('').optional().max(50),
-    country: joi.string().required().min(2).max(50),
-    city: joi.string().required().min(2).max(50),
-    street: joi.string().required().min(2).max(100),
-    houseNumber: joi.number().integer().required().min(1),
-    zip: joi.number().integer().required().min(10000).max(99999),
+    contextUserId: joi.string().optional().allow(''),
     // Image options - either URL or file upload
     imageUrl: joi.string().uri().allow('').optional(), // External image URL
-    imageAlt: joi.string().allow('').optional().max(200),
+    imageAlt: joi.string().allow('').optional().max(100),
     imageType: joi.string().valid('upload', 'url').optional() // Specify image type
-});
+}).unknown(true);
 
 // Create Product Route - POST /api/products/create
 router.post('/create', authMiddleware, logProductOperation('create'), uploadWithSecurity, async (req, res) => {
@@ -66,35 +67,62 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
         const hasUploadedFile = !!req.file;
         const hasImageUrl = !!value.imageUrl?.trim();
         const hasImageInput = hasUploadedFile || hasImageUrl;
+        const normalizedImageAlt = sanitizeImageAlt(value.imageAlt);
 
-        if (hasImageInput && !value.imageAlt?.trim()) {
+        if (hasImageInput && !normalizedImageAlt) {
             if (req.file) {
                 fs.unlink(req.file.path, (err) => {
                     if (err) console.error('Error deleting file:', err);
                 });
             }
-            return res.status(400).json({ message: 'Image description (alt text) is required when an image is provided.' });
+            return res.status(400).json({ message: 'Image description is required when an image is provided.' });
         }
 
-        const normalizedImageAlt = hasImageInput ? value.imageAlt.trim() : 'No image uploaded';
+        let ownerUser = await User.findById(currentUser._id).select('_id name isAdmin isMainBrunch');
+        if (!ownerUser) {
+            if (req.file) {
+                fs.unlink(req.file.path, (err) => {
+                    if (err) console.error('Error deleting file:', err);
+                });
+            }
+            return res.status(404).json({ message: 'Owner user not found' });
+        }
+
+        const requestedContextUserId = typeof value.contextUserId === 'string' ? value.contextUserId.trim() : '';
+        if (currentUser.role === 'admin' && requestedContextUserId) {
+            const contextUser = await User.findById(requestedContextUserId).select('_id name isAdmin isMainBrunch');
+            if (!contextUser) {
+                if (req.file) {
+                    fs.unlink(req.file.path, (err) => {
+                        if (err) console.error('Error deleting file:', err);
+                    });
+                }
+                return res.status(404).json({ message: 'Selected branch user not found' });
+            }
+
+            if (contextUser.isAdmin) {
+                if (req.file) {
+                    fs.unlink(req.file.path, (err) => {
+                        if (err) console.error('Error deleting file:', err);
+                    });
+                }
+                return res.status(400).json({ message: 'Products must be created under a main branch or child branch context.' });
+            }
+
+            ownerUser = contextUser;
+        }
+
+        const ownerRole = ownerUser.isAdmin ? 'admin' : (ownerUser.isMainBrunch ? 'main_brunch' : 'user');
         
         // Prepare product data structure
         const productData = {
             product: {
                 title: value.title,
-                subtitle: value.subtitle,
+                subtitle: value.subtitle || undefined,
                 description: value.description
             },
             supplier: value.supplier,
             category: value.category,
-            branch_address: {
-                state: value.state || undefined,
-                country: value.country,
-                city: value.city,
-                street: value.street,
-                houseNumber: value.houseNumber,
-                zip: value.zip
-            },
             quantity: value.quantity
         };
         
@@ -127,26 +155,14 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
                 alt: normalizedImageAlt,
                 imageType: 'url'
             };
-        } else if (value.imageType === 'url' && !value.imageUrl) {
-            // Error: imageType is 'url' but no URL provided
-            if (req.file) {
-                fs.unlink(req.file.path, (err) => {
-                    if (err) console.error('Error deleting file:', err);
-                });
-            }
-            return res.status(400).json({ message: "Image URL is required when imageType is 'url'" });
-        } else {
-            productData.image = {
-                alt: normalizedImageAlt
-            };
         }
         
         // Add creator information
         productData.createdBy = {
-            userId: currentUser._id,
-            username: currentUser.firstName + ' ' + currentUser.lastName,
-            role: currentUser.role,
-            branchName: currentUser.firstName + "'s Branch"
+            userId: ownerUser._id,
+            username: `${ownerUser.name?.first || ''} ${ownerUser.name?.last || ''}`.trim(),
+            role: ownerRole,
+            branchName: `${ownerUser.name?.first || 'Branch'}'s Branch`
         };
         
         // Create and save new product to database
@@ -166,10 +182,10 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
                 newQuantity: newProduct.quantity,
                 changeType: 'initial_creation',
                 changedBy: {
-                    userId: currentUser._id,
-                    username: currentUser.firstName + ' ' + currentUser.lastName,
-                    role: currentUser.role,
-                    branchName: currentUser.firstName + "'s Branch"
+                    userId: ownerUser._id,
+                    username: `${ownerUser.name?.first || ''} ${ownerUser.name?.last || ''}`.trim(),
+                    role: ownerRole,
+                    branchName: `${ownerUser.name?.first || 'Branch'}'s Branch`
                 },
                 notes: 'Initial product creation'
             });
@@ -303,7 +319,7 @@ router.get('/:id', async (req, res) => {
 
 // Update product with secure image upload - Available to: admin, main_brunch, user (child branches)
 // Security features: File type validation, virus scanning, size limits, filename sanitization
-router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
+router.put('/:id', authMiddleware, logProductOperation('update'), uploadWithSecurity, async (req, res) => {
     try {
         // File upload and security validation already handled by uploadWithSecurity middleware
         console.log('🛡️  File upload and security validation completed for update');
@@ -333,7 +349,7 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
 
         // Ownership Check
         if (currentUser.role !== 'admin') {
-            const productOwnerId = product.user_id ? product.user_id.toString() : null;
+            const productOwnerId = product.createdBy?.userId ? product.createdBy.userId.toString() : null;
             
             if (currentUser.role === 'main_brunch') {
                 if (productOwnerId !== currentUser._id.toString() && 
@@ -362,37 +378,26 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
 
         const hasUploadedFile = !!req.file;
         const hasImageUrl = !!value.imageUrl?.trim();
-        const hasExistingImage = !!product.image && !!(product.image.url || product.image.filename || product.image.alt);
-        const hasImageInput = hasUploadedFile || hasImageUrl || hasExistingImage;
+        const normalizedImageAlt = sanitizeImageAlt(value.imageAlt);
 
-        if (hasImageInput && !value.imageAlt?.trim()) {
+        if ((hasUploadedFile || hasImageUrl) && !normalizedImageAlt) {
             if (req.file) {
                 fs.unlink(req.file.path, (err) => {
                     if (err) console.error('Error deleting file:', err);
                 });
             }
-            return res.status(400).json({ message: 'Image description (alt text) is required when an image is provided.' });
+            return res.status(400).json({ message: 'Image description is required when an image is provided.' });
         }
-
-        const normalizedImageAlt = hasImageInput ? value.imageAlt.trim() : 'No image uploaded';
         
         // Prepare update data
         const updateData = {
             product: {
                 title: value.title,
-                subtitle: value.subtitle,
+                subtitle: value.subtitle || undefined,
                 description: value.description
             },
             supplier: value.supplier,
             category: value.category,
-            branch_address: {
-                state: value.state || undefined,
-                country: value.country,
-                city: value.city,
-                street: value.street,
-                houseNumber: value.houseNumber,
-                zip: value.zip
-            },
             quantity: value.quantity
         };
         
@@ -445,13 +450,10 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
                 alt: normalizedImageAlt,
                 imageType: 'url'
             };
-        } else if (value.imageType === 'url' && !value.imageUrl) {
-            // imageType is url but no URL provided
-            return res.status(400).json({ message: "Image URL is required when imageType is 'url'" });
         } else {
             // Keep existing image if no new upload or URL
-            updateData.image = product.image || { alt: normalizedImageAlt };
-            if (updateData.image) {
+            updateData.image = product.image;
+            if (updateData.image && normalizedImageAlt) {
                 updateData.image.alt = normalizedImageAlt;
             }
         }
@@ -507,7 +509,7 @@ router.put('/:id', authMiddleware, uploadWithSecurity, async (req, res) => {
 });
 
 // Delete product
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, logProductOperation('delete'), async (req, res) => {
     try {
         const currentUser = req.user;
         const { id } = req.params;

@@ -27,8 +27,31 @@ type DateRangePreset = 'last_day' | 'last_week' | 'last_half_year' | 'last_year'
 const MAX_LOOKBACK_DAYS = 730;
 const LOGS_PER_PAGE = 20;
 
+function isProductChangeLog(log: LogEntry) {
+  const operation = (log.operation || '').toLowerCase();
+  const endpoint = (log.endpoint || '').toLowerCase();
+
+  if (['create', 'update', 'delete', 'quantity_change', 'manual_update'].includes(operation)) {
+    return true;
+  }
+
+  // Fallbacks for older/missing operation values.
+  if (endpoint.includes('/quantity')) {
+    return true;
+  }
+
+  if (typeof log.oldQuantity === 'number' || typeof log.newQuantity === 'number') {
+    return true;
+  }
+
+  return false;
+}
+
 function formatDateInput(date: Date) {
-  return date.toISOString().split('T')[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function getDateDaysAgo(days: number) {
@@ -82,7 +105,7 @@ const LogViewer: React.FC = () => {
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [logType, setLogType] = useState('products');
+  const [logType, setLogType] = useState('products_changes');
   const [rangePreset, setRangePreset] = useState<DateRangePreset>('last_day');
   const [startDate, setStartDate] = useState(formatDateInput(new Date()));
   const [endDate, setEndDate] = useState(formatDateInput(new Date()));
@@ -97,15 +120,24 @@ const LogViewer: React.FC = () => {
       : getPresetRange(rangePreset);
   }, [endDate, rangePreset, startDate]);
 
-  const totalPages = Math.max(1, Math.ceil(logs.length / LOGS_PER_PAGE));
+  const visibleLogs = useMemo(() => {
+    if (logType !== 'products_changes') {
+      return logs;
+    }
+
+    return logs.filter(isProductChangeLog);
+  }, [logType, logs]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleLogs.length / LOGS_PER_PAGE));
 
   const paginatedLogs = useMemo(() => {
     const startIndex = (currentPage - 1) * LOGS_PER_PAGE;
-    return logs.slice(startIndex, startIndex + LOGS_PER_PAGE);
-  }, [currentPage, logs]);
+    return visibleLogs.slice(startIndex, startIndex + LOGS_PER_PAGE);
+  }, [currentPage, visibleLogs]);
 
   const fetchLogs = React.useCallback(async () => {
     const { dateFrom, dateTo } = activeDateRange;
+    const effectiveLogType = logType === 'products_changes' ? 'products' : logType;
 
     if (!dateFrom || !dateTo) {
       toast.error('Please select both start and end dates.');
@@ -125,13 +157,27 @@ const LogViewer: React.FC = () => {
     setLoading(true);
     try {
       const response = await logService.searchLogsByRange({
-        logType,
+        logType: effectiveLogType,
         dateFrom,
         dateTo,
         contextUserId: selectedUserId,
       });
 
-      const nextLogs = Array.isArray(response.results) ? response.results : [];
+      let nextLogs = Array.isArray(response.results) ? response.results : [];
+      
+      // Client-side deduplication for quantity_change logs
+      const seenKeys = new Set();
+      nextLogs = nextLogs.filter((log: LogEntry) => {
+        if (log.operation === 'quantity_change') {
+          const key = `${log.productId}|${log.oldQuantity}|${log.newQuantity}|${log.userId || 'system'}`;
+          if (seenKeys.has(key)) {
+            return false; // Skip duplicate
+          }
+          seenKeys.add(key);
+        }
+        return true;
+      });
+      
       nextLogs.sort((left: LogEntry, right: LogEntry) => {
         return new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime();
       });
@@ -151,6 +197,12 @@ const LogViewer: React.FC = () => {
       fetchLogs();
     }
   }, [fetchLogs, user]);
+
+  useEffect(() => {
+    if (!user?.isAdmin && (logType === 'api' || logType === 'errors')) {
+      setLogType('products_changes');
+    }
+  }, [logType, user?.isAdmin]);
 
   const handlePresetChange = (value: DateRangePreset) => {
     setRangePreset(value);
@@ -195,10 +247,10 @@ const LogViewer: React.FC = () => {
             aria-label="Filter logs by type"
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="products">Product Operations</option>
+            <option value="products_changes">Product Changes</option>
             <option value="auth">Auth Events</option>
-            <option value="api">API Traffic</option>
-            <option value="errors">Error Logs</option>
+            {user?.isAdmin && <option value="api">API Traffic</option>}
+            {user?.isAdmin && <option value="errors">Error Logs</option>}
           </select>
           <select
             value={rangePreset}
@@ -253,42 +305,24 @@ const LogViewer: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="space-y-4 py-8" aria-label="Loading logs">
-          <div className="flex flex-col justify-center items-center gap-4 py-6">
-            <div className="relative">
-              <div className="h-14 w-14 rounded-full border-4 border-indigo-100"></div>
-              <div className="absolute inset-0 h-14 w-14 rounded-full border-4 border-transparent border-t-indigo-600 animate-spin"></div>
-            </div>
-            <p className="text-sm font-medium text-gray-600">Loading logs...</p>
+        <div className="flex flex-col justify-center items-center gap-4 py-12" aria-label="Loading logs">
+          <div className="relative">
+            <div className="h-14 w-14 rounded-full border-4 border-indigo-100"></div>
+            <div className="absolute inset-0 h-14 w-14 rounded-full border-4 border-transparent border-t-indigo-600 animate-spin"></div>
           </div>
-
-          <div className="bg-white rounded-xl shadow overflow-hidden border border-gray-100 animate-pulse">
-            <div className="px-6 py-3 bg-gray-50 border-b">
-              <div className="h-4 w-40 bg-gray-200 rounded"></div>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {[1, 2, 3, 4].map((row) => (
-                <div key={row} className="grid grid-cols-4 gap-4 px-6 py-4">
-                  <div className="h-3.5 bg-gray-200 rounded"></div>
-                  <div className="h-3.5 bg-gray-200 rounded"></div>
-                  <div className="h-3.5 bg-gray-200 rounded"></div>
-                  <div className="h-3.5 bg-gray-200 rounded"></div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <p className="text-sm font-medium text-gray-600">Loading logs...</p>
         </div>
-      ) : logs.length === 0 ? (
+      ) : visibleLogs.length === 0 ? (
         <div className="bg-white rounded-xl shadow p-12 text-center border border-gray-100">
           <p className="text-gray-400">
-            No log entries found for this type between {activeDateRange.dateFrom} and {activeDateRange.dateTo}.
+            No log entries found for this filter between {activeDateRange.dateFrom} and {activeDateRange.dateTo}.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-sm text-gray-500">
             <p>
-              Showing {paginatedLogs.length} of {logs.length} events (page {currentPage} of {totalPages})
+              Showing {paginatedLogs.length} of {visibleLogs.length} events (page {currentPage} of {totalPages})
             </p>
           </div>
 
@@ -347,12 +381,13 @@ const LogViewer: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User / Branch</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status / Details</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedLogs.map((log, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50 transition">
+                    <tr key={idx} className="history-log-row hover:bg-gray-50 transition">
                       <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
                         {new Date(log.timestamp).toLocaleTimeString()}
                       </td>
@@ -368,22 +403,30 @@ const LogViewer: React.FC = () => {
                           <div className="text-xs text-gray-500 mt-1 break-all">{log.endpoint || ''}</div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        <div className="space-y-2">
-                          <div>
-                            {log.operation === 'quantity_change' ? (
-                              <span className="font-mono">
-                                {log.oldQuantity} → <span className="font-bold text-indigo-600">{log.newQuantity}</span>
-                              </span>
-                            ) : log.statusCode ? (
-                              <span className={log.statusCode >= 400 ? 'text-red-600 font-bold' : 'text-green-600'}>
-                                HTTP {log.statusCode}
-                              </span>
-                            ) : (
-                              log.message || 'N/A'
-                            )}
-                          </div>
-                          {renderProductDetails(log)}
+                      <td className="px-6 py-4 text-left text-sm text-gray-700">
+                        <div className="truncate">
+                          {log.productTitle && log.productTitle !== log.productId ? (
+                            <>
+                              <div className="font-medium truncate">{log.productTitle}</div>
+                            </>
+                          ) : (
+                            <span className="text-gray-400 truncate">N/A</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-left text-sm text-gray-500">
+                        <div>
+                          {log.operation === 'quantity_change' ? (
+                            <span className="font-mono">
+                              {log.oldQuantity} → <span className="font-bold text-indigo-600">{log.newQuantity}</span>
+                            </span>
+                          ) : log.statusCode ? (
+                            <span className={log.statusCode >= 400 ? 'text-red-600 font-bold' : 'text-green-600'}>
+                              HTTP {log.statusCode}
+                            </span>
+                          ) : (
+                            log.message || 'N/A'
+                          )}
                         </div>
                       </td>
                     </tr>

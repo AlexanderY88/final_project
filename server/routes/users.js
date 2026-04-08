@@ -7,39 +7,59 @@ const authMiddleware = require('../src/middleware/auth');
 const { logAuthEvent } = require('../src/middleware/logging');
 const router = express.Router();
 
+const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 // --- Validation Schemas ---
 
 const registerSchema = joi.object({
     firstName: joi.string().required(),
     lastName: joi.string().required(),
-    email: joi.string().email().required(),
-    password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/),
-    role: joi.string().valid('user', 'main_brunch', 'admin').default('user'),
-});
-
-const loginSchema = joi.object({
-    email: joi.string().email().required().min(5),
-    password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/)
-});
-
-const childBrunchSchema = joi.object({
-    firstName: joi.string().required(),
-    lastName: joi.string().required(),
-    email: joi.string().email().required(),
+    email: joi.string().email({ tlds: { allow: false } }).required().messages({
+        'string.email': 'Email format is incorrect.',
+        'string.empty': 'Email is required.',
+    }),
     password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/),
     phone: joi.string().required(),
     country: joi.string().required(),
     city: joi.string().required(),
     street: joi.string().required(),
     houseNumber: joi.number().integer().min(1).required(),
-    zip: joi.number().integer().min(1).required(),
+    zip: joi.string().allow('').optional(),
+    role: joi.string().valid('user', 'main_brunch', 'admin').default('main_brunch'),
+});
+
+const loginSchema = joi.object({
+    email: joi.string().email({ tlds: { allow: false } }).required().min(5).messages({
+        'string.email': 'Email format is incorrect.',
+        'string.empty': 'Email is required.',
+    }),
+    password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/)
+});
+
+const childBrunchSchema = joi.object({
+    firstName: joi.string().required(),
+    lastName: joi.string().required(),
+    email: joi.string().trim().lowercase().pattern(SIMPLE_EMAIL_REGEX).required().messages({
+        'string.pattern.base': 'Email format is incorrect.',
+        'string.empty': 'Email is required.',
+    }),
+    password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/),
+    phone: joi.string().required(),
+    country: joi.string().required(),
+    city: joi.string().required(),
+    street: joi.string().required(),
+    houseNumber: joi.number().integer().min(1).required(),
+    zip: joi.number().integer().min(10000).max(999999999).optional(),
     mainBrunchId: joi.string().optional(),
 });
 
 const createUserSchema = joi.object({
     firstName: joi.string().required(),
     lastName: joi.string().required(),
-    email: joi.string().email().required(),
+    email: joi.string().email({ tlds: { allow: false } }).required().messages({
+        'string.email': 'Email format is incorrect.',
+        'string.empty': 'Email is required.',
+    }),
     password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/),
     role: joi.string().valid('user', 'main_brunch', 'admin').default('main_brunch'),
     phone: joi.string().allow('').optional(),
@@ -47,8 +67,29 @@ const createUserSchema = joi.object({
     country: joi.string().required(),
     street: joi.string().required(),
     houseNumber: joi.number().integer().min(1).required(),
-    zip: joi.number().integer().min(1).required(),
+    zip: joi.number().integer().min(10000).max(999999999).required(),
     mainBrunchId: joi.string().optional(),
+});
+
+const updateProfileSchema = joi.object({
+    firstName: joi.string().min(2).max(50).optional(),
+    lastName: joi.string().min(2).max(50).optional(),
+    middleName: joi.string().allow('').max(50).optional(),
+    email: joi.string().email({ tlds: { allow: false } }).optional().messages({
+        'string.email': 'Email format is incorrect.',
+    }),
+    phone: joi.string().allow('').optional(),
+    password: joi.string().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/).optional(),
+    isAdmin: joi.boolean().optional(),
+    isMainBrunch: joi.boolean().optional(),
+    address: joi.object({
+        state: joi.string().allow('').optional(),
+        country: joi.string().min(2).max(100).optional(),
+        city: joi.string().min(2).max(100).optional(),
+        street: joi.string().min(2).max(100).optional(),
+        houseNumber: joi.number().integer().min(1).optional(),
+        zip: joi.number().integer().min(10000).max(999999999).optional(),
+    }).optional(),
 });
 
 // Helper: get role string from user document
@@ -74,8 +115,14 @@ router.post("/register", logAuthEvent('register'), async (req, res) => {
             name: { first: req.body.firstName, last: req.body.lastName },
             email: req.body.email,
             password: req.body.password,
-            phone: '0000000000',
-            address: { country: 'Israel', city: 'Tel Aviv', street: 'Default', houseNumber: 1, zip: 10000 },
+            phone: req.body.phone,
+            address: {
+                country: req.body.country,
+                city: req.body.city,
+                street: req.body.street,
+                houseNumber: Number(req.body.houseNumber),
+                zip: req.body.zip ? Number(req.body.zip) : 10000,
+            },
             isMainBrunch: req.body.role === 'main_brunch',
             isAdmin: req.body.role === 'admin',
         });
@@ -235,10 +282,13 @@ router.post("/create-child-brunch", authMiddleware, async (req, res) => {
         }
 
         const { error } = childBrunchSchema.validate(req.body);
-        if (error) return res.status(400).send(error.details[0].message);
+        if (error) return res.status(400).json({ message: error.details[0].message });
 
-        let existing = await User.findOne({ email: req.body.email });
-        if (existing) return res.status(400).json({ message: "User already exists" });
+        let existingByEmail = await User.findOne({ email: req.body.email });
+        if (existingByEmail) return res.status(400).json({ message: "A user with this email already exists" });
+
+        let existingByPhone = await User.findOne({ phone: req.body.phone });
+        if (existingByPhone) return res.status(400).json({ message: "A user with this phone number already exists" });
 
         // Determine which main branch to link to
         let parentId;
@@ -262,7 +312,7 @@ router.post("/create-child-brunch", authMiddleware, async (req, res) => {
                 city: req.body.city,
                 street: req.body.street,
                 houseNumber: req.body.houseNumber,
-                zip: req.body.zip,
+                zip: req.body.zip || 10000,
             },
             isMainBrunch: false,
             isAdmin: false,
@@ -277,6 +327,16 @@ router.post("/create-child-brunch", authMiddleware, async (req, res) => {
         res.status(201).json({ message: "Child branch created", user: created });
     } catch (error) {
         console.error("Error creating child branch:", error);
+        if (error && error.code === 11000) {
+            const duplicateField = Object.keys(error.keyPattern || {})[0];
+            if (duplicateField === 'email') {
+                return res.status(400).json({ message: 'A user with this email already exists' });
+            }
+            if (duplicateField === 'phone') {
+                return res.status(400).json({ message: 'A user with this phone number already exists' });
+            }
+            return res.status(400).json({ message: 'A user with duplicate details already exists' });
+        }
         res.status(500).json({ message: "Server error" });
     }
 });
@@ -351,6 +411,9 @@ router.put("/update-profile/:id", authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
         const currentUser = req.user;
+
+        const { error } = updateProfileSchema.validate(req.body);
+        if (error) return res.status(400).json({ message: error.details[0].message });
 
         let target = await User.findById(id);
         if (!target) return res.status(404).json({ message: "User not found" });

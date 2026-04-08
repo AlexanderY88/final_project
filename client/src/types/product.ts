@@ -17,14 +17,6 @@ export interface Product {
     alt?: string;
     imageType?: 'upload' | 'url';
   };
-  branch_address: {
-    state?: string;
-    country: string;
-    city: string;
-    street: string;
-    houseNumber: number;
-    zip: number;
-  };
   quantity: number;
   createdBy: {
     userId: string;
@@ -42,16 +34,11 @@ export interface ProductFormData {
   description: string;
   supplier: string;
   category: string;
-  quantity: number;
-  state?: string;
-  country: string;
-  city: string;
-  street: string;
-  houseNumber: number;
-  zip: number;
+  quantity?: number;
   imageUrl?: string;
   imageAlt?: string;
   imageType?: 'upload' | 'url';
+  contextUserId?: string;
 }
 
 export interface PaginatedProducts {

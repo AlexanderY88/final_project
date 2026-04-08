@@ -3,7 +3,16 @@ const express = require('express');
 const loggingService = require('../src/services/LoggingService');
 const authMiddleware = require('../src/middleware/auth');
 const User = require('../src/models/User');
+const Product = require('../src/models/Product');
+const ProductQuantityHistory = require('../src/models/ProductQuantityHistory');
 const router = express.Router();
+
+const toLocalDateString = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 // Get Logs by Type and Date/Hour - GET /api/logs/:type/:date/:hour?
 router.get('/:type/:date/:hour?', authMiddleware, async (req, res) => {
@@ -148,6 +157,9 @@ router.post('/search', authMiddleware, async (req, res) => {
                     const children = await User.find({ brunches: contextUser._id, isMainBrunch: false, isAdmin: false }).select('_id');
                     allowedUserIds.push(...children.map(u => u._id.toString()));
                 }
+                // Product/API logs store actor userId. Include admin actor so context views
+                // don't become empty when admin performs actions inside selected branch context.
+                allowedUserIds.push(currentUser._id.toString());
             }
         } else if (currentUser.role === 'main_brunch') {
             allowedUserIds = [currentUser._id.toString()];
@@ -157,13 +169,18 @@ router.post('/search', authMiddleware, async (req, res) => {
         
         // Simple search implementation (could be enhanced)
         const searchResults = [];
+
+        const toComparableUserId = (value) => {
+            if (value === null || value === undefined) return null;
+            return String(value);
+        };
         
         // Get date range
         const startDate = new Date(dateFrom);
         const endDate = new Date(dateTo);
         
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = toLocalDateString(d);
             const dayLogs = await loggingService.getLogs(logType, dateStr);
             
             // Apply filters
@@ -179,13 +196,121 @@ router.post('/search', authMiddleware, async (req, res) => {
                 
                 // Scope to allowed users (admin impersonation or main_brunch own scope)
                 if (allowedUserIds !== null && log.userId) {
-                    if (!allowedUserIds.includes(log.userId)) match = false;
+                    const logUserId = toComparableUserId(log.userId);
+                    if (!allowedUserIds.includes(logUserId)) match = false;
                 }
                 
                 return match;
             });
             
             searchResults.push(...filteredLogs);
+        }
+
+        // Quantity history fallback from DB for product logs.
+        if (logType === 'products') {
+            const rangeStart = new Date(dateFrom);
+            rangeStart.setHours(0, 0, 0, 0);
+            const rangeEnd = new Date(dateTo);
+            rangeEnd.setHours(23, 59, 59, 999);
+
+            const historyRecords = await ProductQuantityHistory.find({
+                createdAt: { $gte: rangeStart, $lte: rangeEnd }
+            }).lean();
+
+            const mappedHistoryLogs = historyRecords.map((record) => ({
+                timestamp: record.createdAt,
+                level: 'INFO',
+                type: 'PRODUCT_OPERATION',
+                userId: record.changedBy?.userId,
+                userEmail: record.changedBy?.username || null,
+                userRole: record.changedBy?.role || null,
+                branchName: record.changedBy?.branchName || null,
+                productId: record.productId,
+                productTitle: record.productInfo?.title,
+                operation: 'quantity_change',
+                oldQuantity: record.previousQuantity,
+                newQuantity: record.newQuantity,
+                quantityChange: record.quantityChange,
+                quantityChangeType: record.quantityChange > 0 ? 'increase' : record.quantityChange < 0 ? 'decrease' : 'no_change',
+                endpoint: `/api/products/${record.productId}/quantity`,
+                statusCode: 200,
+                success: true,
+                source: 'quantity_history'
+            }));
+
+            const filteredHistoryLogs = mappedHistoryLogs.filter((log) => {
+                let match = true;
+                if (filters.userId && toComparableUserId(log.userId) !== toComparableUserId(filters.userId)) match = false;
+                if (filters.statusCode && log.statusCode !== filters.statusCode) match = false;
+                if (filters.operation && log.operation !== filters.operation) match = false;
+                if (filters.userRole && log.userRole !== filters.userRole) match = false;
+
+                if (allowedUserIds !== null && log.userId) {
+                    const logUserId = toComparableUserId(log.userId);
+                    if (!allowedUserIds.includes(logUserId)) match = false;
+                }
+
+                return match;
+            });
+
+            // Deduplicate: only add DB records if NOT already in file logs
+            const fileLogKeys = new Set(
+                searchResults
+                    .filter(log => log.source !== 'quantity_history')
+                    .map((log) => `${String(log.productId).toLowerCase()}|${String(log.oldQuantity)}|${String(log.newQuantity)}`)
+            );
+
+            for (const log of filteredHistoryLogs) {
+                const key = `${String(log.productId).toLowerCase()}|${String(log.oldQuantity)}|${String(log.newQuantity)}`;
+                if (!fileLogKeys.has(key)) {
+                    searchResults.push(log);
+                }
+            }
+        }
+        
+        // Global deduplication for all quantity_change logs to prevent duplicates
+        if (logType === 'products') {
+            const seenKeys = new Set();
+            const deduplicatedResults = [];
+            
+            for (const log of searchResults) {
+                if (log.operation === 'quantity_change') {
+                    const key = `${String(log.productId).toLowerCase()}|${String(log.oldQuantity)}|${String(log.newQuantity)}|${String(log.userId || 'system')}`;
+                    if (!seenKeys.has(key)) {
+                        seenKeys.add(key);
+                        deduplicatedResults.push(log);
+                    }
+                } else {
+                    deduplicatedResults.push(log);
+                }
+            }
+            
+            searchResults = deduplicatedResults;
+        }
+        
+        // Enrich logs with product titles if missing
+        const productIds = [...new Set(
+            searchResults
+                .filter(log => log.productId && !log.productTitle)
+                .map(log => log.productId)
+        )];
+        
+        if (productIds.length > 0) {
+            try {
+                const products = await Product.find({ _id: { $in: productIds } }).select('_id title').lean();
+                const productTitleMap = {};
+                products.forEach(p => {
+                    productTitleMap[p._id.toString()] = p.title;
+                });
+                
+                searchResults.forEach(log => {
+                    if (log.productId && !log.productTitle && productTitleMap[log.productId]) {
+                        log.productTitle = productTitleMap[log.productId];
+                    }
+                });
+            } catch (enrichError) {
+                console.error('Error enriching product titles:', enrichError);
+            }
         }
         
         res.status(200).json({

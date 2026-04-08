@@ -218,9 +218,16 @@ const AdminUsers: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {users.map(u => (
-                <tr key={u._id} className="hover:bg-gray-50 transition">
+                <tr key={u._id} className="admin-users-row hover:bg-gray-50 transition">
                   <td className="px-5 py-4">
-                    <p className="font-medium text-gray-800">{u.name?.first} {u.name?.last}</p>
+                    {u.isAdmin ? (
+                      <p className="font-medium text-gray-800">{u.name?.first} {u.name?.last}</p>
+                    ) : (
+                      <>
+                        <p className="font-medium text-gray-800">Branch: {u.name?.first}</p>
+                        <p className="text-xs text-gray-500">Manager: {u.name?.last}</p>
+                      </>
+                    )}
                     <p className="text-xs text-gray-400">{u.address?.city}, {u.address?.country}</p>
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-600">{u.email}</td>

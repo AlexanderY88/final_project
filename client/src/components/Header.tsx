@@ -75,8 +75,6 @@ const Header: React.FC = () => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-2">
             {/* Always visible */}
-            <Link to="/about" className={navLinkClass('/about')}>About Us</Link>
-            <Link to="/contact" className={navLinkClass('/contact')}>Contact Us</Link>
             <button
               type="button"
               onClick={toggleTheme}
@@ -86,10 +84,12 @@ const Header: React.FC = () => {
             >
               {isDarkMode ? 'Light Mode' : 'Dark Mode'}
             </button>
+            <Link to="/about" className={navLinkClass('/about')}>About Us</Link>
+            <Link to="/contact" className={navLinkClass('/contact')}>Contact Us</Link>
 
             {isAuthenticated ? (
               <>
-                {!isAdmin && <Link to="/dashboard" className={navLinkClass('/dashboard')}>Dashboard</Link>}
+                {!isAdmin && <Link to="/dashboard" className={navLinkClass('/dashboard')}>My Business</Link>}
                 {!isAdmin && <Link to="/products" className={navLinkClass('/products')}>Products</Link>}
 
                 {isMainBranch && !isAdmin && (
@@ -100,8 +100,7 @@ const Header: React.FC = () => {
                   <Link to="/admin/users" className={navLinkClass('/admin/users')}>Admins Panel</Link>
                 )}
 
-                {isAdmin && (
-                  <Link to="/admin/mailbox" className={navLinkClass('/admin/mailbox')}>
+                <Link to={isAdmin ? '/admin/mailbox' : '/mailbox'} className={navLinkClass(isAdmin ? '/admin/mailbox' : '/mailbox')}>
                     <span className="flex items-center gap-1">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -109,7 +108,6 @@ const Header: React.FC = () => {
                       Mailbox
                     </span>
                   </Link>
-                )}
 
                 <Link to="/profile" className={navLinkClass('/profile')}>My Profile</Link>
 
@@ -179,8 +177,6 @@ const Header: React.FC = () => {
         <div className="md:hidden bg-indigo-700">
           <div className="px-2 pt-2 pb-3 space-y-1">
             {/* Always visible */}
-            <Link to="/about" className={mobileNavLinkClass('/about')} onClick={closeMobile}>About Us</Link>
-            <Link to="/contact" className={mobileNavLinkClass('/contact')} onClick={closeMobile}>Contact Us</Link>
             <button
               type="button"
               onClick={toggleTheme}
@@ -188,10 +184,12 @@ const Header: React.FC = () => {
             >
               {isDarkMode ? 'Light Mode' : 'Dark Mode'}
             </button>
+            <Link to="/about" className={mobileNavLinkClass('/about')} onClick={closeMobile}>About Us</Link>
+            <Link to="/contact" className={mobileNavLinkClass('/contact')} onClick={closeMobile}>Contact Us</Link>
 
             {isAuthenticated ? (
               <>
-                {!isAdmin && <Link to="/dashboard" className={mobileNavLinkClass('/dashboard')} onClick={closeMobile}>Dashboard</Link>}
+                {!isAdmin && <Link to="/dashboard" className={mobileNavLinkClass('/dashboard')} onClick={closeMobile}>My Business</Link>}
                 {!isAdmin && <Link to="/products" className={mobileNavLinkClass('/products')} onClick={closeMobile}>Products</Link>}
 
                 {isMainBranch && !isAdmin && (
@@ -202,11 +200,9 @@ const Header: React.FC = () => {
                   <Link to="/admin/users" className={mobileNavLinkClass('/admin/users')} onClick={closeMobile}>Admins Panel</Link>
                 )}
 
-                {isAdmin && (
-                  <Link to="/admin/mailbox" className={mobileNavLinkClass('/admin/mailbox')} onClick={closeMobile}>
+                <Link to={isAdmin ? '/admin/mailbox' : '/mailbox'} className={mobileNavLinkClass(isAdmin ? '/admin/mailbox' : '/mailbox')} onClick={closeMobile}>
                     Mailbox
                   </Link>
-                )}
 
                 <Link to="/profile" className={mobileNavLinkClass('/profile')} onClick={closeMobile}>My Profile</Link>
 

@@ -48,6 +48,7 @@ function App() {
             <Route path="/products/:id/edit" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/branches" element={<ProtectedRoute><Branches /></ProtectedRoute>} />
+            <Route path="/mailbox" element={<ProtectedRoute><Mailbox /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
             <Route path="/admin/mailbox" element={<ProtectedRoute><Mailbox /></ProtectedRoute>} />
 
