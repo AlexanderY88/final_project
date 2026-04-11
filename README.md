@@ -88,6 +88,40 @@ From project root:
 npm run build
 ```
 
+## Run production locally
+
+From project root:
+
+```bash
+npm start
+```
+
+or:
+
+```bash
+npm run start:prod
+```
+
+or:
+
+```bash
+npm run prod
+```
+
+What it does:
+- Builds the server TypeScript output.
+- Builds the client production bundle.
+- Starts the backend in production mode.
+- Serves the frontend build on `http://localhost:3000`.
+
+Notes:
+- `npm start` now runs the production version from the project root.
+- `npm start prod` is not a valid npm command format.
+
+Important:
+- Put your production env file at `server/.env.production`.
+- The backend runs on `http://localhost:5000`.
+
 ## Common issues
 
 1. Port already in use (`3000` or `5000`)
@@ -99,7 +133,8 @@ npm run build
 
 3. Missing script error from root
 - Use root commands exactly as written above (`npm run dev`, `npm run install:all`).
-- Do not run `npm start` in project root.
+- Use `npm start` only for the production run from the project root.
+- Use `npm run dev` for local development from the project root.
 
 4. Auto-seed did not run / test users are missing
 - Run seed manually from `server` folder.
@@ -136,15 +171,28 @@ Root (`package.json`):
 - `npm run dev` -> run server + client together
 - `npm run install:all` -> install dependencies for all parts
 - `npm run build` -> build client
+- `npm run prod` -> build server + client and run the production version locally
 
 Server (`server/package.json`):
 - `npm run dev` -> run backend in development
+- `npm run build` -> compile backend TypeScript to `dist/`
+- `npm run start` -> run compiled backend in production mode
 - `npm run seed:full` -> seed sample data
 - Server dependencies include `sharp` for automatic uploaded image compression
 
 Client (`client/package.json`):
 - `npm start` -> run frontend
 - `npm test` -> run frontend tests
+
+## README files in this repo
+
+There are 3 README files:
+
+- `README.md` - the main project README. This is the real entry point for running and submitting the project.
+- `client/README.md` - client-only note file. It is not the main project documentation.
+- `server/src/seeds/README.md` - seed-system documentation for developers. It is only relevant if you work on seed scripts.
+
+If you only want to run or submit the project, use the root `README.md`.
 
 ## Test Users (Seed Data)
 
@@ -233,4 +281,5 @@ npm start
 
 3. שגיאת `Missing script` בתיקיה הראשית
 - להשתמש בפקודות מה-README: `npm run dev`, `npm run install:all`.
-- לא להריץ `npm start` מהתיקיה הראשית.
+- `npm start` מיועד עכשיו להרצת גרסת production מהתיקיה הראשית.
+- לפיתוח מקומי יש להריץ `npm run dev` מהתיקיה הראשית.

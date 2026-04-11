@@ -2,9 +2,17 @@ const express = require('express');
 const joi = require('joi');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const path = require('path');
 const User = require('../src/models/User');
-const authMiddleware = require('../src/middleware/auth');
-const { logAuthEvent } = require('../src/middleware/logging');
+const loadServerModule = (distRelativePath, srcRelativePath) => {
+    try {
+        return require(path.join(__dirname, '..', 'dist', distRelativePath));
+    } catch (error) {
+        return require(path.join(__dirname, '..', 'src', srcRelativePath));
+    }
+};
+const authMiddleware = loadServerModule('middleware/auth', 'middleware/auth');
+const { logAuthEvent } = loadServerModule('middleware/logging', 'middleware/logging');
 const router = express.Router();
 
 const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;

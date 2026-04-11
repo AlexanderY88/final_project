@@ -147,12 +147,6 @@ const Branches: React.FC = () => {
     }
   };
 
-  const clearFieldError = (field: string) => {
-    if (validationErrors[field]) {
-      setValidationErrors((prev) => ({ ...prev, [field]: '' }));
-    }
-  };
-
   if (isLoading && branches.length === 0) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">

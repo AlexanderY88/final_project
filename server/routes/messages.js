@@ -1,7 +1,15 @@
 const express = require('express');
 const joi = require('joi');
+const path = require('path');
 const Message = require('../src/models/Message');
-const authMiddleware = require('../src/middleware/auth');
+const loadServerModule = (distRelativePath, srcRelativePath) => {
+  try {
+    return require(path.join(__dirname, '..', 'dist', distRelativePath));
+  } catch (error) {
+    return require(path.join(__dirname, '..', 'src', srcRelativePath));
+  }
+};
+const authMiddleware = loadServerModule('middleware/auth', 'middleware/auth');
 const { getNextSequence } = require('../src/models/Counter');
 
 const router = express.Router();

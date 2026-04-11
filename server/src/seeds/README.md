@@ -1,10 +1,14 @@
 # Database Seeding Guide
 
-This guide explains how to use the database seeding system for development.
+This README is only for the seed system inside `server/src/seeds`.
 
-## 🌱 What is Database Seeding?
+For normal project setup and run instructions, use the root README:
 
-Database seeding is the process of populating your database with initial data for development and testing. This includes test users, sample data, etc.
+- `../../../README.md`
+
+## What this is for
+
+Database seeding populates development data for testing.
 
 ## 📁 File Structure
 
@@ -45,25 +49,22 @@ npm run db:reset
 - **`npm run seed:force`** - Overwrites existing seed data
 - **`npm run db:reset`** - Nuclear option: clears everything and adds fresh data
 
-## 🔐 Test User Credentials
+## Test User Credentials
 
-After seeding, you can log in with these test accounts:
+Current default seed users in this repo are:
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@company.com | admin123 |
-| Branch Manager | branch.manager@company.com | branch123 |
-| User | john.doe@example.com | password123 |
-| User | jane.smith@example.com | password123 |
+| Admin | admin@admin.com | Admin123! |
+| Main Branch | main@branch.com | Business123! |
+| Child Branch | north@branch.com | User123! |
 
-## 📊 Seed Data Included
+## Seed Data Included
 
-### Users
 - 1 Admin user
-- 1 Branch Manager  
-- 4 Regular users
-- All with hashed passwords
-- Different roles for testing permissions
+- 1 Main branch user
+- 1 Child branch user
+- Sample products linked to the main branch
 
 ## 🔧 Configuration
 
@@ -156,11 +157,11 @@ db.users.find().pretty()
 - The `db:reset` command **destroys all data** - use carefully
 - Always backup important data before seeding
 
-## 📝 Development Workflow
+## Development Workflow
 
 1. **Fresh start:** `npm run db:reset`
 2. **Add more data:** `npm run seed`  
 3. **Update seeds:** `npm run seed:force`
 4. **Clean slate:** `npm run seed:fresh`
 
-Happy coding! 🎉
+Use this file only when you are changing seed logic. For normal development flow, use the root README.

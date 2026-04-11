@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Full-stack React TypeScript + Node.js application",
   "scripts": {
+    "start": "npm run prod",
+    "start:prod": "npm run prod",
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
     "server:dev": "cd server && npm run dev",
     "client:dev": "cd client && npm start",
@@ -10,11 +12,17 @@
     "client:install": "cd client && npm install",
     "install:all": "npm run server:install && npm run client:install",
     "build": "cd client && npm run build",
-    "server:start": "cd server && npm start"
+    "server:build": "cd server && npm run build",
+    "client:build": "cd client && npm run build",
+    "prod:build": "npm run server:build && npm run client:build",
+    "server:start": "cd server && npm start",
+    "client:serve": "serve -s client/build -l 3000",
+    "prod": "npm run prod:build && concurrently \"npm run server:start\" \"npm run client:serve\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "cross-env": "^10.1.0"
+    "cross-env": "^10.1.0",
+    "serve": "^14.2.4"
   },
   "dependencies": {
     "@types/jsonwebtoken": "^9.0.10",

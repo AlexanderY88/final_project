@@ -1,13 +1,20 @@
 // Product Management Routes - CRUD operations with security
 const express = require('express');
 const joi = require('joi');
+const path = require('path');
 const Product = require('../src/models/Product');
 const User = require('../src/models/User');
-const { uploadWithSecurity } = require('../src/middleware/fileUpload');
-const authMiddleware = require('../src/middleware/auth');
-const { recordQuantityChange } = require('../src/utils/quantityHistory');
-const { logProductOperation, logQuantityChange } = require('../src/middleware/logging');
-const path = require('path');
+const loadServerModule = (distRelativePath, srcRelativePath) => {
+    try {
+        return require(path.join(__dirname, '..', 'dist', distRelativePath));
+    } catch (error) {
+        return require(path.join(__dirname, '..', 'src', srcRelativePath));
+    }
+};
+const { uploadWithSecurity } = loadServerModule('middleware/fileUpload', 'middleware/fileUpload');
+const authMiddleware = loadServerModule('middleware/auth', 'middleware/auth');
+const { recordQuantityChange } = loadServerModule('utils/quantityHistory', 'utils/quantityHistory');
+const { logProductOperation, logQuantityChange } = loadServerModule('middleware/logging', 'middleware/logging');
 const fs = require('fs');
 const router = express.Router();
 const LEGACY_EMPTY_ALT_VALUES = new Set(['no image uploaded']);

@@ -12,8 +12,16 @@ const productRoutes = require('../routes/products');  // Product management rout
 const logRoutes = require('../routes/logs');  // Logging and analytics routes
 const messageRoutes = require('../routes/messages');  // Contact-us mailbox routes
 
+const loadServerModule = (distRelativePath: string, srcRelativePath: string) => {
+  try {
+    return require(path.resolve(__dirname, distRelativePath));
+  } catch (error) {
+    return require(path.resolve(__dirname, '..', 'src', srcRelativePath));
+  }
+};
+
 // Import middleware
-const { requestLogger, errorLogger } = require('./middleware/logging');
+const { requestLogger, errorLogger } = loadServerModule('./middleware/logging', 'middleware/logging');
 
 // Import database configuration
 import { connectDB } from './config/database';

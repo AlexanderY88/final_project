@@ -1,7 +1,15 @@
 // Logs Management and Analytics Routes
 const express = require('express');
-const loggingService = require('../src/services/LoggingService');
-const authMiddleware = require('../src/middleware/auth');
+const path = require('path');
+const loadServerModule = (distRelativePath, srcRelativePath) => {
+    try {
+        return require(path.join(__dirname, '..', 'dist', distRelativePath));
+    } catch (error) {
+        return require(path.join(__dirname, '..', 'src', srcRelativePath));
+    }
+};
+const loggingService = loadServerModule('services/LoggingService', 'services/LoggingService');
+const authMiddleware = loadServerModule('middleware/auth', 'middleware/auth');
 const User = require('../src/models/User');
 const Product = require('../src/models/Product');
 const ProductQuantityHistory = require('../src/models/ProductQuantityHistory');
