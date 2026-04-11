@@ -227,7 +227,6 @@ export const productFormSchema = Joi.object({
 export const profileSchema = Joi.object({
   firstName: requiredName('First name'),
   lastName: requiredName('Last name'),
-  middleName: optionalShortText('Middle name', 50),
   email: Joi.string().trim().email({ tlds: { allow: false } }).required().messages({
     'string.empty': 'Email is required.',
     'string.email': 'Email format is incorrect.',
@@ -239,6 +238,17 @@ export const profileSchema = Joi.object({
   houseNumber: positiveInteger('House number'),
   zip: optionalZipCode(),
   state: optionalShortText('State', 50),
+});
+
+export const passwordChangeSchema = Joi.object({
+  newPassword: Joi.string().pattern(PASSWORD_REGEX).required().messages({
+    'string.empty': 'New password is required.',
+    'string.pattern.base': 'Password must include uppercase, lowercase, number, and special character (min 6 characters).',
+  }),
+  confirmPassword: Joi.string().valid(Joi.ref('newPassword')).required().messages({
+    'string.empty': 'Password confirmation is required.',
+    'any.only': 'Passwords do not match.',
+  }),
 });
 
 export const mailboxCommentSchema = Joi.object({

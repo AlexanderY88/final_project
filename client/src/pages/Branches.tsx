@@ -19,6 +19,7 @@ const Branches: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const selectedUserId = searchParams.get('userId') || undefined;
+  const focusBranchId = searchParams.get('focusBranchId') || undefined;
   const isAdmin = !!currentUser?.isAdmin;
   const mainBranchContextId = isAdmin ? selectedUserId : currentUser?.isMainBrunch ? currentUser._id : undefined;
   const canCreateBranch = !isAdmin || !!mainBranchContextId;
@@ -46,6 +47,15 @@ const Branches: React.FC = () => {
   useEffect(() => {
     dispatch(fetchChildBranches(selectedUserId));
   }, [dispatch, selectedUserId]);
+
+  useEffect(() => {
+    if (!focusBranchId || branches.length === 0) return;
+
+    const target = document.getElementById(`branch-card-${focusBranchId}`);
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [branches, focusBranchId]);
 
   const handleFieldChange = (name: string, value: string) => {
     const nextForm = { ...form, [name]: value };
@@ -382,12 +392,16 @@ const Branches: React.FC = () => {
           {branches.map(branch => (
             <div
               key={branch._id}
-              className="bg-white rounded-xl shadow-md p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
+              id={`branch-card-${branch._id}`}
+              className={`bg-white rounded-xl shadow-md p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${focusBranchId === branch._id ? 'ring-2 ring-indigo-400 border border-indigo-200' : ''}`}
             >
               <div>
                 <h3 className="font-semibold text-gray-800">
                   {branch.name?.first}
                 </h3>
+                {focusBranchId === branch._id && (
+                  <p className="text-xs text-indigo-700 font-medium mt-1">Focused branch</p>
+                )}
                 <p className="text-sm text-gray-500">Manager: {branch.name?.last}</p>
                 <p className="text-sm text-gray-500">{branch.email}</p>
                 {branch.phone && <p className="text-sm text-gray-400">Phone: {branch.phone}</p>}
@@ -396,12 +410,28 @@ const Branches: React.FC = () => {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {!isAdmin && (
+                  <button
+                    onClick={() => navigate(`/products?userId=${branch._id}&from=branches-list`)}
+                    className="text-sm text-green-700 hover:text-green-900 border border-green-200 px-4 py-1.5 rounded-lg hover:bg-green-50 transition"
+                  >
+                    View Branch Products
+                  </button>
+                )}
+                {!isAdmin && (
+                  <button
+                    onClick={() => navigate(`/profile?userId=${branch._id}&from=branches-list`)}
+                    className="text-sm text-amber-700 hover:text-amber-900 border border-amber-200 px-4 py-1.5 rounded-lg hover:bg-amber-50 transition"
+                  >
+                    Update Branch
+                  </button>
+                )}
                 {isAdmin && selectedUserId && (
                   <button
                     onClick={() => navigate(`/dashboard?userId=${branch._id}&from=branches-list&mainBranchId=${selectedUserId}`)}
                     className="text-sm text-indigo-700 hover:text-indigo-900 border border-indigo-200 px-4 py-1.5 rounded-lg hover:bg-indigo-50 transition"
                   >
-                    Open Branch Dashboard
+                    Open Branch
                   </button>
                 )}
                 {isAdmin && selectedUserId && (

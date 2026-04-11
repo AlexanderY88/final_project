@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
 
@@ -16,6 +16,7 @@ const Header: React.FC = () => {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(getInitialDarkMode);
 
@@ -27,6 +28,7 @@ const Header: React.FC = () => {
   const handleLogout = () => {
     dispatch(logout());
     setMobileMenuOpen(false);
+    navigate('/login');
   };
 
   const toggleTheme = () => {
@@ -41,6 +43,13 @@ const Header: React.FC = () => {
   const isMainBranch = user?.isMainBrunch;
 
   const userName = user?.name?.first || 'User';
+  const profileLabel = isAuthenticated
+    ? isAdmin
+      ? 'My Details'
+      : isMainBranch
+      ? 'Main Branch Details'
+      : 'Branch Details'
+    : 'Main Branch Details';
 
   const navLinkClass = (path: string) =>
     `px-3 py-2 rounded-md text-sm font-medium transition duration-200 ${
@@ -109,7 +118,7 @@ const Header: React.FC = () => {
                     </span>
                   </Link>
 
-                <Link to="/profile" className={navLinkClass('/profile')}>My Profile</Link>
+                <Link to="/profile" className={navLinkClass('/profile')}>{profileLabel}</Link>
 
                 {/* Divider + user info + logout */}
                 <div className="flex items-center ml-3 pl-3 border-l border-indigo-400 space-x-3">
@@ -204,7 +213,7 @@ const Header: React.FC = () => {
                     Mailbox
                   </Link>
 
-                <Link to="/profile" className={mobileNavLinkClass('/profile')} onClick={closeMobile}>My Profile</Link>
+                <Link to="/profile" className={mobileNavLinkClass('/profile')} onClick={closeMobile}>{profileLabel}</Link>
 
                 <div className="border-t border-indigo-500 mt-2 pt-2">
                   <span className="block px-3 py-2 text-indigo-200 text-sm">

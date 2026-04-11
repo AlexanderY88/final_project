@@ -58,6 +58,7 @@ const Dashboard: React.FC = () => {
   const [resumePromptHandled, setResumePromptHandled] = useState(false);
   const source = searchParams.get('from');
   const mainBranchId = searchParams.get('mainBranchId');
+  const selectedBranchUserId = searchParams.get('userId');
 
   useEffect(() => {
     if (!user) {
@@ -117,6 +118,11 @@ const Dashboard: React.FC = () => {
       );
     });
   }, [users, adminSearch]);
+
+  const selectedChildBranchForMain = useMemo(() => {
+    if (!user?.isMainBrunch || !selectedBranchUserId) return null;
+    return childBranches.find((branch) => branch._id === selectedBranchUserId) || null;
+  }, [user?.isMainBrunch, selectedBranchUserId, childBranches]);
 
   useEffect(() => {
     if (!user?.isAdmin || usersLoading) return;
@@ -364,6 +370,29 @@ const Dashboard: React.FC = () => {
             <div className="child-branches-card bg-white rounded-xl shadow-md p-6">
               <h2 className="text-lg font-semibold text-gray-800 mb-4">Child Branches</h2>
 
+              {selectedChildBranchForMain && (
+                <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                  <p className="text-sm text-indigo-900 font-medium">
+                    Viewing context: {selectedChildBranchForMain.name.first} ({selectedChildBranchForMain.email})
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link
+                      to={`/products?userId=${selectedChildBranchForMain._id}&from=main-branch-dashboard`}
+                      className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"
+                    >
+                      Open Branch Products
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setSearchParams({})}
+                      className="text-sm border border-indigo-200 bg-white text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition"
+                    >
+                      Exit Branch Context
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {usersLoading && <p className="text-sm text-gray-500">Loading child branches...</p>}
 
               {!usersLoading && childBranches.length === 0 ? (
@@ -379,6 +408,20 @@ const Dashboard: React.FC = () => {
                     <div key={branch._id} className="child-branch-item border border-gray-200 rounded-lg p-3">
                       <p className="font-medium text-gray-800">{branch.name.first} {branch.name.last}</p>
                       <p className="text-xs text-gray-500">{branch.email}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link
+                          to={`/branches?focusBranchId=${branch._id}&from=my-business`}
+                          className="text-xs text-indigo-700 dark:text-white border border-indigo-200 px-2.5 py-1 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-700 transition"
+                        >
+                          Branch Details
+                        </Link>
+                        <Link
+                          to={`/products?userId=${branch._id}&from=my-business`}
+                          className="text-xs text-green-700 dark:text-white border border-green-200 px-2.5 py-1 rounded-md hover:bg-green-50 dark:hover:bg-green-700 transition"
+                        >
+                          Products
+                        </Link>
+                      </div>
                     </div>
                   ))}
                 </div>

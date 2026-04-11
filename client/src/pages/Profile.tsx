@@ -6,7 +6,7 @@ import * as userService from '../services/users';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { User } from '../types/auth';
-import { getFieldErrorWithJoi, getInputClassName, profileSchema, validateWithJoi } from '../utils/validation';
+import { getFieldErrorWithJoi, getInputClassName, profileSchema, passwordChangeSchema, validateWithJoi } from '../utils/validation';
 
 const Profile: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -23,17 +23,25 @@ const Profile: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingRoleChange, setPendingRoleChange] = useState<'admin' | 'main_brunch' | 'user' | null>(null);
   const [roleChanging, setRoleChanging] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordValidationErrors, setPasswordValidationErrors] = useState<Record<string, string>>({});
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [confirmationType, setConfirmationType] = useState<'profile' | 'password' | null>(null);
 
   const selectedUserId = searchParams.get('userId');
   const from = searchParams.get('from');
   const mainBranchId = searchParams.get('mainBranchId');
   const isAdminEditingOtherUser = !!(user?.isAdmin && selectedUserId);
-  const currentProfileUser = isAdminEditingOtherUser ? profileUser : user;
+  const isMainBranchEditingChild = !!(user?.isMainBrunch && selectedUserId);
+  const isEditingSelectedUser = isAdminEditingOtherUser || isMainBranchEditingChild;
+  const currentProfileUser = isEditingSelectedUser ? profileUser : user;
+  const canEditProfile = !!(user?.isAdmin || user?.isMainBrunch);
+  const canChangePassword = !!(user?.isAdmin || user?.isMainBrunch);
 
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
-    middleName: '',
     email: '',
     phone: '',
     country: '',
@@ -49,7 +57,7 @@ const Profile: React.FC = () => {
       return;
     }
 
-    if (!isAdminEditingOtherUser || !selectedUserId) {
+    if (!isEditingSelectedUser || !selectedUserId) {
       setProfileUser(null);
       setLoadingProfileUser(false);
       return;
@@ -82,7 +90,7 @@ const Profile: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [user, isAdminEditingOtherUser, selectedUserId]);
+  }, [user, isEditingSelectedUser, selectedUserId]);
 
   // Load user data into form
   useEffect(() => {
@@ -90,7 +98,6 @@ const Profile: React.FC = () => {
       setForm({
         firstName: currentProfileUser.name.first,
         lastName: currentProfileUser.name.last,
-        middleName: currentProfileUser.name.middle || '',
         email: currentProfileUser.email,
         phone: currentProfileUser.phone || '',
         country: currentProfileUser.address.country,
@@ -101,7 +108,7 @@ const Profile: React.FC = () => {
         state: currentProfileUser.address.state || '',
       });
     }
-  }, [currentProfileUser]);
+  }, [currentProfileUser, selectedUserId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -155,6 +162,7 @@ const Profile: React.FC = () => {
       return;
     }
 
+    setConfirmationType('profile');
     setShowConfirm(true);
   };
 
@@ -169,7 +177,6 @@ const Profile: React.FC = () => {
       const updatedUser = await userService.updateProfile(currentProfileUser._id, {
         firstName: form.firstName,
         lastName: form.lastName,
-        middleName: form.middleName,
         email: form.email,
         phone: form.phone,
         address: {
@@ -198,6 +205,49 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const nextForm = { ...passwordForm, [name]: value };
+    setPasswordForm(nextForm);
+
+    const fieldError = getFieldErrorWithJoi(passwordChangeSchema, nextForm, name);
+    setPasswordValidationErrors((prev) => ({ ...prev, [name]: fieldError }));
+  };
+
+  const handlePasswordSubmit = () => {
+    const nextErrors = validateWithJoi(passwordChangeSchema, passwordForm);
+    setPasswordValidationErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
+    setConfirmationType('password');
+    setShowConfirm(true);
+  };
+
+  const handleConfirmPasswordChange = async () => {
+    setShowConfirm(false);
+    if (!currentProfileUser) return;
+    setChangingPassword(true);
+    setError('');
+    setMessage('');
+
+    try {
+      await userService.updatePassword(currentProfileUser._id, passwordForm.newPassword);
+      toast.success('Password updated successfully!');
+      setMessage('Password updated successfully!');
+      setShowPasswordForm(false);
+      setPasswordForm({ newPassword: '', confirmPassword: '' });
+      setPasswordValidationErrors({});
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'Failed to update password';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   if (!user || loadingProfileUser || !currentProfileUser) {
     return (
       <div className="min-h-[55vh] flex flex-col justify-center items-center gap-4">
@@ -215,15 +265,22 @@ const Profile: React.FC = () => {
   const isBranchProfileUser = !currentProfileUser.isAdmin;
   const firstNameLabel = isBranchProfileUser ? 'Branch Name' : 'First Name';
   const lastNameLabel = isBranchProfileUser ? 'Manager' : 'Last Name';
+  const profileTitle = isAdminEditingOtherUser
+    ? 'Update User'
+    : isMainBranchEditingChild
+    ? 'Child Branch Details'
+    : user?.isMainBrunch
+    ? 'Main Branch Details'
+    : 'Branch Details';
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
-            {isAdminEditingOtherUser ? 'Update User' : 'My Profile'}
+            {profileTitle}
           </h1>
-          {isAdminEditingOtherUser && (
+          {(isAdminEditingOtherUser || isMainBranchEditingChild) && (
             <p className="text-sm text-gray-500 mt-1">Editing {currentProfileUser.email}</p>
           )}
         </div>
@@ -234,12 +291,19 @@ const Profile: React.FC = () => {
 
       <ConfirmationModal
         isOpen={showConfirm}
-        title={isAdminEditingOtherUser ? 'Update User' : 'Update Profile'}
-        message={isAdminEditingOtherUser
+        title={confirmationType === 'password' 
+          ? 'Change Password' 
+          : isAdminEditingOtherUser ? 'Update User' : 'Update Profile'}
+        message={confirmationType === 'password'
+          ? 'Are you sure you want to change your password?'
+          : isAdminEditingOtherUser
           ? 'Are you sure you want to save the changes to this user?'
           : 'Are you sure you want to save the changes to your profile?'}
-        onConfirm={handleConfirmSave}
-        onCancel={() => setShowConfirm(false)}
+        onConfirm={confirmationType === 'password' ? handleConfirmPasswordChange : handleConfirmSave}
+        onCancel={() => {
+          setShowConfirm(false);
+          setConfirmationType(null);
+        }}
       />
 
       <ConfirmationModal
@@ -286,18 +350,6 @@ const Profile: React.FC = () => {
               className={getInputClassName(!!validationErrors.lastName, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
             />
             {validationErrors.lastName && <p className="mt-1 text-sm text-red-600">{validationErrors.lastName}</p>}
-          </div>
-          <div>
-            <label htmlFor="middleName" className="block text-sm font-medium text-gray-600 mb-1">Middle Name</label>
-            <input
-              id="middleName"
-              name="middleName"
-              value={form.middleName}
-              onChange={handleChange}
-              disabled={!editing}
-              className={getInputClassName(!!validationErrors.middleName, 'w-full border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
-            />
-            {validationErrors.middleName && <p className="mt-1 text-sm text-red-600">{validationErrors.middleName}</p>}
           </div>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-600 mb-1">Email</label>
@@ -362,7 +414,7 @@ const Profile: React.FC = () => {
 
         {/* Buttons */}
         <div className="mt-6 flex gap-3">
-          {editing ? (
+          {canEditProfile && editing ? (
             <>
               <button
                 onClick={handleSave}
@@ -378,16 +430,16 @@ const Profile: React.FC = () => {
                 Cancel
               </button>
             </>
-          ) : (
+          ) : canEditProfile ? (
             <button
               onClick={() => setEditing(true)}
               className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg hover:bg-indigo-700 transition font-medium"
             >
-              {isAdminEditingOtherUser ? 'Edit User' : 'Edit Profile'}
+              {isAdminEditingOtherUser ? 'Edit User' : isMainBranchEditingChild ? 'Edit Branch' : 'Edit Profile'}
             </button>
-          )}
+          ) : null}
 
-          {isAdminEditingOtherUser && (
+          {(isAdminEditingOtherUser || isMainBranchEditingChild) && (
             <button
               type="button"
               onClick={() => {
@@ -401,7 +453,17 @@ const Profile: React.FC = () => {
                   return;
                 }
 
-                navigate('/admin/users');
+                if (from === 'branches-list') {
+                  navigate('/branches');
+                  return;
+                }
+
+                if (user?.isAdmin) {
+                  navigate('/admin/users');
+                  return;
+                }
+
+                navigate('/dashboard');
               }}
               className="border border-gray-300 px-6 py-2.5 rounded-lg hover:bg-gray-50 transition"
             >
@@ -429,6 +491,70 @@ const Profile: React.FC = () => {
               </select>
               <span className="text-sm text-gray-500">{roleChanging ? 'Updating...' : 'Select a role to change it'}</span>
             </div>
+          </div>
+        )}
+
+        {/* Change Password */}
+        {canChangePassword && (
+          <div className="mt-6 pt-4 border-t">
+            <h2 className="text-lg font-semibold text-gray-800 mb-3">Change Password</h2>
+            {showPasswordForm ? (
+            <form onSubmit={(e) => { e.preventDefault(); handlePasswordSubmit(); }} className="space-y-4">
+              <div>
+                <label htmlFor="newPassword" className="block text-sm font-medium text-gray-600 mb-1">New Password *</label>
+                <input
+                  id="newPassword"
+                  name="newPassword"
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={handlePasswordChange}
+                  className={getInputClassName(!!passwordValidationErrors.newPassword, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
+                  placeholder="Enter new password"
+                />
+                {passwordValidationErrors.newPassword && <p className="mt-1 text-sm text-red-600">{passwordValidationErrors.newPassword}</p>}
+              </div>
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-600 mb-1">Confirm Password *</label>
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={handlePasswordChange}
+                  className={getInputClassName(!!passwordValidationErrors.confirmPassword, 'w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent')}
+                  placeholder="Confirm new password"
+                />
+                {passwordValidationErrors.confirmPassword && <p className="mt-1 text-sm text-red-600">{passwordValidationErrors.confirmPassword}</p>}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition font-medium"
+                >
+                  {changingPassword ? 'Updating...' : 'Update Password'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordForm(false);
+                    setPasswordForm({ newPassword: '', confirmPassword: '' });
+                    setPasswordValidationErrors({});
+                  }}
+                  className="border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+            ) : (
+              <button
+                onClick={() => setShowPasswordForm(true)}
+                className="text-sm text-indigo-700 hover:text-indigo-900 border border-indigo-200 px-4 py-2 rounded-lg hover:bg-indigo-50 transition"
+              >
+                Change Password
+              </button>
+            )}
           </div>
         )}
 

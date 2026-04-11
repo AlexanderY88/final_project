@@ -233,6 +233,38 @@ router.get("/child-brunches", authMiddleware, async (req, res) => {
             return res.status(403).json({ message: "Access denied" });
         }
 
+        const getChildrenForMainBranch = async (mainBranchDoc) => {
+            if (!mainBranchDoc) return [];
+
+            // Direction 1: child document points to main via child.brunches = [mainId]
+            const childrenByChildLink = await User.find({
+                brunches: mainBranchDoc._id,
+                isMainBrunch: false,
+                isAdmin: false,
+            }).select('-password');
+
+            // Direction 2: main document points to children via main.brunches = [mainId, childId, ...]
+            const linkedChildIds = (mainBranchDoc.brunches || [])
+                .map((id) => id.toString())
+                .filter((id) => id !== mainBranchDoc._id.toString());
+
+            let childrenByMainLink = [];
+            if (linkedChildIds.length > 0) {
+                childrenByMainLink = await User.find({
+                    _id: { $in: linkedChildIds },
+                    isMainBrunch: false,
+                    isAdmin: false,
+                }).select('-password');
+            }
+
+            const byId = new Map();
+            [...childrenByChildLink, ...childrenByMainLink].forEach((userDoc) => {
+                byId.set(userDoc._id.toString(), userDoc);
+            });
+
+            return Array.from(byId.values());
+        };
+
         let childBranches;
         if (currentUser.role === 'admin') {
             if (mainBrunchId) {
@@ -241,22 +273,15 @@ router.get("/child-brunches", authMiddleware, async (req, res) => {
                     return res.status(400).json({ message: "Invalid main branch" });
                 }
 
-                childBranches = await User.find({
-                    brunches: mainBranch._id,
-                    isMainBrunch: false,
-                    isAdmin: false,
-                }).select('-password');
+                childBranches = await getChildrenForMainBranch(mainBranch);
             } else {
                 // Admin sees all child branch users if no main branch context is provided
                 childBranches = await User.find({ isAdmin: false, isMainBrunch: false }).select('-password');
             }
         } else {
-            // Main branch sees children linked to them via brunches array
-            childBranches = await User.find({
-                brunches: currentUser._id,
-                isMainBrunch: false,
-                isAdmin: false,
-            }).select('-password');
+            // Main branch sees children in both relationship directions.
+            const mainBranch = await User.findById(currentUser._id).select('-password');
+            childBranches = await getChildrenForMainBranch(mainBranch);
         }
 
         res.status(200).json({
@@ -422,8 +447,9 @@ router.put("/update-profile/:id", authMiddleware, async (req, res) => {
         const isOwn = currentUser._id.toString() === id;
         const isAdminUser = currentUser.role === 'admin';
         const isMainManagingChild = currentUser.role === 'main_brunch' && !target.isAdmin && !target.isMainBrunch;
+        const isMainEditingSelf = currentUser.role === 'main_brunch' && isOwn;
 
-        if (!isOwn && !isAdminUser && !isMainManagingChild) {
+        if (!isAdminUser && !isMainManagingChild && !isMainEditingSelf) {
             return res.status(403).json({ message: "Access denied" });
         }
 
@@ -459,6 +485,45 @@ router.put("/update-profile/:id", authMiddleware, async (req, res) => {
         res.status(200).json(updated);
     } catch (error) {
         console.error("Error updating profile:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// Change password - MUST come before /:id catch-all route
+router.put("/change-password/:id", authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { newPassword } = req.body;
+        const currentUser = req.user;
+
+        // Validate password
+        const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/;
+        if (!newPassword || !passwordPattern.test(newPassword)) {
+            return res.status(400).json({ message: 'Password must include uppercase, lowercase, number, and special character (min 6 characters).' });
+        }
+
+        const target = await User.findById(id);
+        if (!target) return res.status(404).json({ message: "User not found" });
+
+        // Permission check - admin can update any password, main branch can update self or child branch passwords.
+        const isOwn = currentUser._id.toString() === id;
+        const isAdminUser = currentUser.role === 'admin';
+        const isMainManagingChild = currentUser.role === 'main_brunch' && !target.isAdmin && !target.isMainBrunch;
+        const isMainEditingSelf = currentUser.role === 'main_brunch' && isOwn;
+
+        if (!isAdminUser && !isMainManagingChild && !isMainEditingSelf) {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        // Hash and update password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await User.updateOne({ _id: id }, { $set: { password: hashedPassword } });
+        const updated = await User.findById(id).select('-password');
+        res.status(200).json(updated);
+    } catch (error) {
+        console.error("Error changing password:", error);
         res.status(500).json({ message: "Server error" });
     }
 });

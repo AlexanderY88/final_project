@@ -168,7 +168,7 @@ router.post('/search', authMiddleware, async (req, res) => {
         }
         
         // Simple search implementation (could be enhanced)
-        const searchResults = [];
+        let searchResults = [];
 
         const toComparableUserId = (value) => {
             if (value === null || value === undefined) return null;

@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { fetchProducts, deleteProduct, updateQuantity } from '../features/products/productsSlice';
+import { fetchChildBranches } from '../features/users/usersSlice';
+import * as userService from '../services/users';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { Product } from '../types/product';
+import { User } from '../types/auth';
 
 const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api')
   .replace(/\/api\/?$/, '')
@@ -20,8 +23,21 @@ interface QuantityModalState {
   mode: QuantityModalMode;
 }
 
-const getAdminContextParams = (selectedUserId?: string) =>
-  selectedUserId ? `?userId=${selectedUserId}&from=admin-users` : '';
+const getContextParams = (selectedUserId?: string, source?: string) => {
+  if (!selectedUserId) return '';
+  const params = new URLSearchParams({ userId: selectedUserId });
+  if (source) params.set('from', source);
+  return `?${params.toString()}`;
+};
+
+const getCreateContextParams = (viewUserId?: string, contextUserId?: string, source?: string) => {
+  const params = new URLSearchParams();
+  if (viewUserId) params.set('userId', viewUserId);
+  if (contextUserId) params.set('contextUserId', contextUserId);
+  if (source) params.set('from', source);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+};
 
 const getProductImageUrl = (product: Product) => {
   if (!product.image) return null;
@@ -88,8 +104,10 @@ const shortenDescription = (description: string) =>
 const Products: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentUser = useAppSelector(state => state.auth.user);
   const { products, totalPages, totalProducts, isLoading, error } = useAppSelector(state => state.products);
+  const { childBranches } = useAppSelector(state => state.users);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -98,11 +116,146 @@ const Products: React.FC = () => {
   const [viewMode, setViewMode] = useState<ProductsViewMode>('cards');
 
   const selectedUserId = searchParams.get('userId') || undefined;
-  const adminContextParams = getAdminContextParams(selectedUserId);
+  const selectedMainBranchId = searchParams.get('mainBranchId') || undefined;
+  const selectedScope = searchParams.get('scope') || undefined;
+  const source = searchParams.get('from') || undefined;
+  const isAdminUser = !!currentUser?.isAdmin;
+  const isMainBranchUser = !isAdminUser && !!currentUser?.isMainBrunch;
+  const isAdminAllBranchesSelected = isAdminUser && selectedScope === 'all';
+  const isAllBranchesSelected = isMainBranchUser && selectedScope === 'all';
+  const [adminContextBranch, setAdminContextBranch] = useState<User | null>(null);
+  const [adminNetworkMainBranch, setAdminNetworkMainBranch] = useState<User | null>(null);
+
+  const effectiveSelectedUserId = isAdminUser
+    ? (isAdminAllBranchesSelected
+      ? (selectedMainBranchId || adminNetworkMainBranch?._id || selectedUserId)
+      : selectedUserId)
+    : isMainBranchUser
+    ? (isAllBranchesSelected ? undefined : (selectedUserId || currentUser?._id))
+    : selectedUserId;
+
+  const effectiveCreateContextUserId = isMainBranchUser
+    ? (isAllBranchesSelected ? (currentUser?._id || undefined) : effectiveSelectedUserId)
+    : effectiveSelectedUserId;
+
+  const contextParams = getContextParams(effectiveSelectedUserId, source);
+  const createContextParams = getCreateContextParams(effectiveSelectedUserId, effectiveCreateContextUserId, source);
 
   useEffect(() => {
-    dispatch(fetchProducts({ page, limit: 12, userId: selectedUserId }));
-  }, [dispatch, page, selectedUserId]);
+    if (!isMainBranchUser || !currentUser?._id) return;
+    dispatch(fetchChildBranches());
+  }, [dispatch, isMainBranchUser, currentUser?._id]);
+
+  useEffect(() => {
+    if (!isAdminUser || !selectedUserId) {
+      setAdminContextBranch(null);
+      setAdminNetworkMainBranch(null);
+      return;
+    }
+
+    let active = true;
+
+    const loadAdminBranchNetwork = async () => {
+      try {
+        const selectedBranch = await userService.getById(selectedUserId);
+        if (!active) return;
+
+        setAdminContextBranch(selectedBranch);
+
+        const mainBranchId = selectedMainBranchId || (selectedBranch.isMainBrunch
+          ? selectedBranch._id
+          : selectedBranch.brunches?.[0]);
+
+        if (!mainBranchId) {
+          setAdminNetworkMainBranch(selectedBranch.isMainBrunch ? selectedBranch : null);
+          return;
+        }
+
+        if (selectedMainBranchId !== mainBranchId) {
+          const params = new URLSearchParams(searchParams);
+          params.set('mainBranchId', mainBranchId);
+          if (!params.get('userId')) {
+            params.set('userId', selectedBranch._id);
+          }
+          setSearchParams(params);
+        }
+
+        const mainBranch = selectedBranch.isMainBrunch
+          ? selectedBranch
+          : await userService.getById(mainBranchId);
+
+        if (!active) return;
+
+        setAdminNetworkMainBranch(mainBranch);
+        dispatch(fetchChildBranches(mainBranch._id));
+      } catch (loadError) {
+        if (!active) return;
+
+        setAdminContextBranch(null);
+        setAdminNetworkMainBranch(null);
+      }
+    };
+
+    loadAdminBranchNetwork();
+
+    return () => {
+      active = false;
+    };
+  }, [dispatch, isAdminUser, searchParams, selectedMainBranchId, selectedUserId, setSearchParams]);
+
+  const shouldShowBranchSelector = isMainBranchUser || (isAdminUser && !!adminNetworkMainBranch && !!adminContextBranch);
+
+  const branchOptions = useMemo(() => {
+    if (isAdminUser && adminNetworkMainBranch && adminContextBranch) {
+      return [
+        { id: 'all', label: 'All Branches (This Network)' },
+        { id: adminNetworkMainBranch._id, label: `${adminNetworkMainBranch.name.first} (Main Branch)` },
+        ...childBranches.map((branch) => ({ id: branch._id, label: `${branch.name.first} (Child)` })),
+      ];
+    }
+
+    if (isMainBranchUser && currentUser) {
+      return [
+        { id: 'all', label: 'All Branches' },
+        { id: currentUser._id, label: `${currentUser.name.first} (Main Branch)` },
+        ...childBranches.map((branch) => ({ id: branch._id, label: `${branch.name.first} (Child)` })),
+      ];
+    }
+
+    return [];
+  }, [adminContextBranch, adminNetworkMainBranch, childBranches, currentUser, isAdminUser, isMainBranchUser]);
+
+  useEffect(() => {
+    dispatch(fetchProducts({ page, limit: 12, userId: effectiveSelectedUserId, scope: selectedScope || undefined }));
+  }, [dispatch, page, effectiveSelectedUserId, selectedScope]);
+
+  const handleBranchSelectionChange = (branchUserId: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (branchUserId === 'all' && isMainBranchUser) {
+      params.delete('userId');
+      params.set('scope', 'all');
+    } else if (branchUserId === 'all' && isAdminUser) {
+      params.set('scope', 'all');
+      if (adminNetworkMainBranch?._id) {
+        params.set('mainBranchId', adminNetworkMainBranch._id);
+        // Keep backend query scoped to this specific main branch network.
+        params.set('userId', adminNetworkMainBranch._id);
+      }
+    } else {
+      params.set('userId', branchUserId);
+      params.delete('scope');
+    }
+
+    if (isAdminUser && adminNetworkMainBranch?._id) {
+      params.set('mainBranchId', adminNetworkMainBranch._id);
+    }
+
+    if (source) {
+      params.set('from', source);
+    }
+    setSearchParams(params);
+    setPage(1);
+  };
 
   const handleDelete = (id: string) => {
     setDeleteId(id);
@@ -151,7 +304,38 @@ const Products: React.FC = () => {
     }
   };
 
-  const filtered = products.filter(p =>
+  const scopeFilteredProducts = useMemo(() => {
+    if (isAdminUser) {
+      // Admin in a selected network: enforce rendering only what current scope allows,
+      // even if a previous broader response arrives out of order.
+      if (!isAdminAllBranchesSelected && effectiveSelectedUserId) {
+        return products.filter((p) => String(p.createdBy?.userId || '') === String(effectiveSelectedUserId));
+      }
+
+      if (isAdminAllBranchesSelected && branchOptions.length > 0) {
+        const allowedIds = new Set(branchOptions.filter((b) => b.id !== 'all').map((b) => String(b.id)));
+        return products.filter((p) => allowedIds.has(String(p.createdBy?.userId || '')));
+      }
+
+      return products;
+    }
+
+    if (!isMainBranchUser || isAllBranchesSelected || !effectiveSelectedUserId) {
+      return products;
+    }
+
+    return products.filter((p) => String(p.createdBy?.userId || '') === String(effectiveSelectedUserId));
+  }, [
+    products,
+    isAdminUser,
+    isAdminAllBranchesSelected,
+    branchOptions,
+    isMainBranchUser,
+    isAllBranchesSelected,
+    effectiveSelectedUserId,
+  ]);
+
+  const filtered = scopeFilteredProducts.filter(p =>
     p.product.title.toLowerCase().includes(search.toLowerCase()) ||
     p.category.toLowerCase().includes(search.toLowerCase()) ||
     p.supplier.toLowerCase().includes(search.toLowerCase())
@@ -212,6 +396,22 @@ const Products: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {shouldShowBranchSelector && branchOptions.length > 0 && (
+            <div className="min-w-[220px]">
+              <label htmlFor="branch-select" className="sr-only">Select branch</label>
+              <select
+                id="branch-select"
+                value={(isAllBranchesSelected || isAdminAllBranchesSelected) ? 'all' : (effectiveSelectedUserId || '')}
+                onChange={(e) => handleBranchSelectionChange(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                {branchOptions.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
             <button
               type="button"
@@ -230,7 +430,7 @@ const Products: React.FC = () => {
           </div>
 
           <Link
-            to={`/products/new${adminContextParams}`}
+            to={`/products/new${createContextParams}`}
             className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium"
           >
             + New Product
@@ -327,13 +527,13 @@ const Products: React.FC = () => {
                 {/* Action Buttons */}
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   <Link
-                    to={`/products/${product._id}${adminContextParams}`}
+                    to={`/products/${product._id}${contextParams}`}
                     className="text-center text-sm bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 transition font-medium"
                   >
                     Details
                   </Link>
                   <Link
-                    to={`/products/${product._id}/edit${adminContextParams}`}
+                    to={`/products/${product._id}/edit${contextParams}`}
                     className="text-center text-sm bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 rounded-lg hover:bg-yellow-100 transition font-medium"
                   >
                     Edit
@@ -378,13 +578,13 @@ const Products: React.FC = () => {
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   <Link
-                    to={`/products/${product._id}${adminContextParams}`}
+                    to={`/products/${product._id}${contextParams}`}
                     className="text-center bg-blue-600 text-white px-2.5 py-2 rounded-lg hover:bg-blue-700 transition text-xs font-medium"
                   >
                     Details
                   </Link>
                   <Link
-                    to={`/products/${product._id}/edit${adminContextParams}`}
+                    to={`/products/${product._id}/edit${contextParams}`}
                     className="text-center bg-yellow-600 text-white px-2.5 py-2 rounded-lg hover:bg-yellow-700 transition text-xs font-medium"
                   >
                     Edit
@@ -442,13 +642,13 @@ const Products: React.FC = () => {
                     <td className="px-3 py-3">
                       <div className="flex flex-nowrap items-center justify-end gap-1.5">
                         <Link
-                          to={`/products/${product._id}${adminContextParams}`}
+                          to={`/products/${product._id}${contextParams}`}
                           className="bg-blue-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-blue-700 transition text-xs font-medium whitespace-nowrap"
                         >
                           Details
                         </Link>
                         <Link
-                          to={`/products/${product._id}/edit${adminContextParams}`}
+                          to={`/products/${product._id}/edit${contextParams}`}
                           className="bg-yellow-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-yellow-700 transition text-xs font-medium whitespace-nowrap"
                         >
                           Edit
@@ -491,7 +691,7 @@ const Products: React.FC = () => {
       {filtered.length === 0 && !isLoading && (
         <div className="text-center py-16">
           <p className="text-gray-500 text-lg">No products found</p>
-          <Link to={`/products/new${adminContextParams}`} className="text-indigo-600 hover:underline mt-2 inline-block">
+          <Link to={`/products/new${createContextParams}`} className="text-indigo-600 hover:underline mt-2 inline-block">
             Create your first product
           </Link>
         </div>

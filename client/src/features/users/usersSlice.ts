@@ -85,6 +85,7 @@ const usersSlice = createSlice({
       .addCase(fetchChildBranches.pending, (state) => {
         state.isLoading = true;
         state.error = null;
+        state.childBranches = [];
       })
       .addCase(fetchChildBranches.fulfilled, (state, action) => {
         state.isLoading = false;
@@ -93,6 +94,7 @@ const usersSlice = createSlice({
       })
       .addCase(fetchChildBranches.rejected, (state, action) => {
         state.isLoading = false;
+        state.childBranches = [];
         state.error = action.payload as string;
       })
       // Delete User

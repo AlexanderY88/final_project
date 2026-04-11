@@ -13,9 +13,50 @@ const router = express.Router();
 const LEGACY_EMPTY_ALT_VALUES = new Set(['no image uploaded']);
 
 const sanitizeImageAlt = (value) => {
-    const trimmed = (value || '').trim();
-    if (!trimmed) return '';
-    return LEGACY_EMPTY_ALT_VALUES.has(trimmed.toLowerCase()) ? '' : trimmed;
+    const text = (value || '');
+    // Check if only whitespace - if so, return empty
+    if (!text.trim()) return '';
+    // Don't trim spaces from actual content - only reject legacy values
+    return LEGACY_EMPTY_ALT_VALUES.has(text.toLowerCase()) ? '' : text;
+};
+
+const getProductOwnerId = (product) => {
+    if (!product) return null;
+    if (product.createdBy?.userId) return String(product.createdBy.userId);
+    if (product.user_id) return String(product.user_id);
+    return null;
+};
+
+const canMainBranchManageOwner = async (mainBranchUserId, ownerUserId) => {
+    if (!mainBranchUserId || !ownerUserId) return false;
+
+    const mainId = String(mainBranchUserId);
+    const ownerId = String(ownerUserId);
+
+    if (mainId === ownerId) {
+        return true;
+    }
+
+    const isManagedChildByChildLink = await User.exists({
+        _id: ownerId,
+        brunches: mainId,
+        isMainBrunch: false,
+        isAdmin: false,
+    });
+
+    if (isManagedChildByChildLink) {
+        return true;
+    }
+
+    // Backward-compatible relationship direction (main branch stores child IDs).
+    const isManagedChildByMainLink = await User.exists({
+        _id: mainId,
+        brunches: ownerId,
+        isMainBrunch: true,
+        isAdmin: false,
+    });
+
+    return !!isManagedChildByMainLink;
 };
 
 // Joi Schema for Product Validation
@@ -27,6 +68,7 @@ const checkProductBody = joi.object({
     category: joi.string().required().min(1).max(50),
     quantity: joi.number().integer().min(0).default(0),
     contextUserId: joi.string().optional().allow(''),
+    userId: joi.string().optional().allow(''),
     // Image options - either URL or file upload
     imageUrl: joi.string().uri().allow('').optional(), // External image URL
     imageAlt: joi.string().allow('').optional().max(100),
@@ -88,8 +130,12 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
             return res.status(404).json({ message: 'Owner user not found' });
         }
 
-        const requestedContextUserId = typeof value.contextUserId === 'string' ? value.contextUserId.trim() : '';
-        if (currentUser.role === 'admin' && requestedContextUserId) {
+        const requestedContextUserId = (
+            typeof value.contextUserId === 'string' && value.contextUserId.trim()
+                ? value.contextUserId.trim()
+                : (typeof value.userId === 'string' ? value.userId.trim() : '')
+        );
+        if ((currentUser.role === 'admin' || currentUser.role === 'main_brunch') && requestedContextUserId) {
             const contextUser = await User.findById(requestedContextUserId).select('_id name isAdmin isMainBrunch');
             if (!contextUser) {
                 if (req.file) {
@@ -107,6 +153,29 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
                     });
                 }
                 return res.status(400).json({ message: 'Products must be created under a main branch or child branch context.' });
+            }
+
+            if (currentUser.role === 'main_brunch') {
+                const currentUserId = currentUser._id.toString();
+                const contextUserId = contextUser._id.toString();
+
+                if (contextUserId !== currentUserId) {
+                    const isManagedChild = await User.exists({
+                        _id: contextUser._id,
+                        brunches: currentUser._id,
+                        isMainBrunch: false,
+                        isAdmin: false,
+                    });
+
+                    if (!isManagedChild) {
+                        if (req.file) {
+                            fs.unlink(req.file.path, (err) => {
+                                if (err) console.error('Error deleting file:', err);
+                            });
+                        }
+                        return res.status(403).json({ message: 'Access denied: You can only create products for your branch or your child branches.' });
+                    }
+                }
             }
 
             ownerUser = contextUser;
@@ -224,7 +293,7 @@ router.get('/', authMiddleware, async (req, res) => {
         const skip = (page - 1) * limit;
 
         const currentUser = req.user;
-        const { search, category, supplier, minQty, userId } = req.query;
+        const { search, category, supplier, minQty, userId, scope } = req.query;
         let query = {};
 
         if (search) {
@@ -248,18 +317,37 @@ router.get('/', authMiddleware, async (req, res) => {
 
             if (!contextUser.isAdmin) {
                 if (contextUser.isMainBrunch) {
-                    const childUsers = await User.find({
-                        brunches: contextUser._id,
-                        isMainBrunch: false,
-                        isAdmin: false,
-                    }).select('_id');
+                    if (scope === 'all') {
+                        const childrenByChildLink = await User.find({
+                            brunches: contextUser._id,
+                            isMainBrunch: false,
+                            isAdmin: false,
+                        }).select('_id');
 
-                    const allowedIds = [
-                        contextUser._id,
-                        ...childUsers.map((u) => u._id),
-                    ];
+                        const mainDoc = await User.findById(contextUser._id).select('_id brunches');
+                        const linkedChildIds = (mainDoc?.brunches || [])
+                            .map((id) => id.toString())
+                            .filter((id) => id !== contextUser._id.toString());
 
-                    query['createdBy.userId'] = { $in: allowedIds };
+                        let childrenByMainLink = [];
+                        if (linkedChildIds.length > 0) {
+                            childrenByMainLink = await User.find({
+                                _id: { $in: linkedChildIds },
+                                isMainBrunch: false,
+                                isAdmin: false,
+                            }).select('_id');
+                        }
+
+                        const allowedIdsMap = new Map();
+                        [contextUser, ...childrenByChildLink, ...childrenByMainLink].forEach((u) => {
+                            allowedIdsMap.set(String(u._id), u._id);
+                        });
+
+                        query['createdBy.userId'] = { $in: Array.from(allowedIdsMap.values()) };
+                    } else {
+                        // Admin selected the main branch directly: show only main branch products.
+                        query['createdBy.userId'] = contextUser._id;
+                    }
                 } else {
                     query['createdBy.userId'] = contextUser._id;
                 }
@@ -276,7 +364,22 @@ router.get('/', authMiddleware, async (req, res) => {
                 ...childUsers.map((u) => u._id),
             ];
 
-            query['createdBy.userId'] = { $in: allowedIds };
+            if (userId) {
+                const normalizedRequestedId = String(userId).trim();
+                const requestedUser = await User.findById(normalizedRequestedId).select('_id');
+
+                if (!requestedUser) {
+                    return res.status(404).json({ message: 'Selected branch context not found' });
+                }
+
+                const isAllowed = allowedIds.some((id) => id.toString() === requestedUser._id.toString());
+                if (!isAllowed) {
+                    return res.status(403).json({ message: 'Access denied: Invalid branch context' });
+                }
+                query['createdBy.userId'] = requestedUser._id;
+            } else {
+                query['createdBy.userId'] = { $in: allowedIds };
+            }
         } else if (currentUser.role === 'user') {
             query['createdBy.userId'] = currentUser._id;
         }
@@ -349,11 +452,11 @@ router.put('/:id', authMiddleware, logProductOperation('update'), uploadWithSecu
 
         // Ownership Check
         if (currentUser.role !== 'admin') {
-            const productOwnerId = product.createdBy?.userId ? product.createdBy.userId.toString() : null;
+            const productOwnerId = getProductOwnerId(product);
             
             if (currentUser.role === 'main_brunch') {
-                if (productOwnerId !== currentUser._id.toString() && 
-                    (!currentUser.brunches || !currentUser.brunches.includes(productOwnerId))) {
+                const canManage = await canMainBranchManageOwner(currentUser._id, productOwnerId);
+                if (!canManage) {
                     if (req.file) fs.unlinkSync(req.file.path);
                     return res.status(403).json({ message: "Access denied: You do not manage this branch" });
                 }
@@ -529,12 +632,11 @@ router.delete('/:id', authMiddleware, logProductOperation('delete'), async (req,
         // Main branch sees their own and their child branches'.
         // Child branch (user) only sees their own.
         if (currentUser.role !== 'admin') {
-            const productOwnerId = product.user_id ? product.user_id.toString() : null;
+            const productOwnerId = getProductOwnerId(product);
             
             if (currentUser.role === 'main_brunch') {
-                // Main branch must be either the owner or the parent of the owner
-                if (productOwnerId !== currentUser._id.toString() && 
-                    (!currentUser.brunches || !currentUser.brunches.includes(productOwnerId))) {
+                const canManage = await canMainBranchManageOwner(currentUser._id, productOwnerId);
+                if (!canManage) {
                     return res.status(403).json({ message: "Access denied: You do not manage this branch" });
                 }
             } else if (currentUser.role === 'user') {
@@ -592,6 +694,21 @@ router.patch('/:id/quantity', authMiddleware, async (req, res) => {
         const product = await Product.findById(id);
         if (!product) {
             return res.status(404).json({ message: "Product not found" });
+        }
+
+        if (currentUser.role !== 'admin') {
+            const productOwnerId = getProductOwnerId(product);
+
+            if (currentUser.role === 'main_brunch') {
+                const canManage = await canMainBranchManageOwner(currentUser._id, productOwnerId);
+                if (!canManage) {
+                    return res.status(403).json({ message: "Access denied: You do not manage this branch" });
+                }
+            } else if (currentUser.role === 'user') {
+                if (productOwnerId !== currentUser._id.toString()) {
+                    return res.status(403).json({ message: "Access denied: You can only update your own product quantity" });
+                }
+            }
         }
         
         // Store previous quantity for history tracking

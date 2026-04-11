@@ -1,9 +1,14 @@
 // Import required packages
 const express = require("express");
-require("dotenv").config();
+const helmet = require("helmet");
+const path = require("path");
+const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const chalk = require("chalk"); // For colored console output
+
+const dotenvPath = path.resolve(process.cwd(), process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development');
+dotenv.config({ path: dotenvPath });
 
 // Import our route files
 const users = require("./routes/users");
@@ -11,18 +16,6 @@ const cards = require("./routes/products");
 
 // Import seed function
 const seedDatabase = require("./seed");
-
-// Load environment variables based on NODE_ENV
-const envFile = process.env.NODE_ENV === 'development' 
-  ? '.env.production' 
-  : '.env.development';
-
-dotenv.config({ path: path.resolve(process.cwd(), envFile) });
-
-// Fallback to .env if specific environment file doesn't exist
-if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'development') {
-  dotenv.config();
-}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -37,8 +30,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/products', productRoutes);
-app.use('/api/users', userRoutes);
+app.use('/api/products', cards);
+app.use('/api/users', users);
 
 app.get('/api/health', (req, res) => {
   res.json({ 

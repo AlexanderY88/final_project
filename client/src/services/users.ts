@@ -38,6 +38,11 @@ export const updateProfile = async (id: string, userData: any) => {
   return data;
 };
 
+export const updatePassword = async (id: string, newPassword: string) => {
+  const { data } = await api.put(`/users/change-password/${id}`, { newPassword });
+  return data;
+};
+
 export const deleteUser = async (id: string) => {
   const { data } = await api.delete(`/users/${id}`);
   return data;

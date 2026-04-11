@@ -13,9 +13,11 @@ const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024;
 const LEGACY_EMPTY_ALT_VALUES = new Set(['no image uploaded']);
 
 const sanitizeImageAlt = (value?: string) => {
-  const trimmed = (value || '').trim();
-  if (!trimmed) return '';
-  return LEGACY_EMPTY_ALT_VALUES.has(trimmed.toLowerCase()) ? '' : trimmed;
+  const text = value || '';
+  // Check if only whitespace - if so, return empty
+  if (!text.trim()) return '';
+  // Don't trim spaces from actual content - only reject legacy values
+  return LEGACY_EMPTY_ALT_VALUES.has(text.toLowerCase()) ? '' : text;
 };
 
 const ProductForm: React.FC = () => {
@@ -25,7 +27,9 @@ const ProductForm: React.FC = () => {
   const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector(state => state.auth);
+  const explicitContextUserId = searchParams.get('contextUserId') || undefined;
   const selectedUserId = searchParams.get('userId') || undefined;
+  const contextUserId = explicitContextUserId || selectedUserId;
   const source = searchParams.get('from') || undefined;
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -39,6 +43,7 @@ const ProductForm: React.FC = () => {
   const getReturnProductsPath = () => {
     const params = new URLSearchParams();
     if (selectedUserId) params.set('userId', selectedUserId);
+    if (explicitContextUserId) params.set('contextUserId', explicitContextUserId);
     if (source) params.set('from', source);
 
     const query = params.toString();
@@ -55,7 +60,7 @@ const ProductForm: React.FC = () => {
     imageUrl: '',
     imageAlt: '',
     imageType: 'upload',
-    contextUserId: selectedUserId,
+    contextUserId,
   });
 
   // Load product data when editing
@@ -72,11 +77,11 @@ const ProductForm: React.FC = () => {
           imageUrl: product.image?.url || '',
           imageAlt: sanitizeImageAlt(product.image?.alt),
           imageType: product.image?.imageType || 'upload',
-          contextUserId: selectedUserId,
+          contextUserId,
         });
       }).catch(() => setError('Failed to load product data'));
     }
-  }, [id, isEdit, selectedUserId]);
+  }, [id, isEdit, contextUserId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -173,9 +178,9 @@ const ProductForm: React.FC = () => {
     setError('');
 
     let legacyAddress = user?.address;
-    if (selectedUserId) {
+    if (contextUserId) {
       try {
-        const selectedUser = await userService.getById(selectedUserId);
+        const selectedUser = await userService.getById(contextUserId);
         if (selectedUser?.address) {
           legacyAddress = selectedUser.address;
         }
@@ -198,7 +203,8 @@ const ProductForm: React.FC = () => {
       subtitle: (form.subtitle || '').trim() || undefined,
       imageUrl: form.imageType === 'url' ? ((form.imageUrl || '').trim() || undefined) : undefined,
       imageAlt: (form.imageAlt || '').trim() || undefined,
-      contextUserId: selectedUserId,
+      contextUserId,
+      userId: selectedUserId,
       country: safeLegacyAddress.country,
       city: safeLegacyAddress.city,
       street: safeLegacyAddress.street,

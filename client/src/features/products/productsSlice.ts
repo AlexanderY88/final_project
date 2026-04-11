@@ -23,9 +23,9 @@ const initialState: ProductsState = {
 
 export const fetchProducts = createAsyncThunk(
   'products/fetchAll',
-  async ({ page = 1, limit = 12, userId }: { page?: number; limit?: number; userId?: string }, { rejectWithValue }) => {
+  async ({ page = 1, limit = 12, userId, scope }: { page?: number; limit?: number; userId?: string; scope?: string }, { rejectWithValue }) => {
     try {
-      return await productService.getAll(page, limit, userId);
+      return await productService.getAll(page, limit, userId, scope);
     } catch (error: unknown) {
       return rejectWithValue(extractApiErrorMessage(error, 'Failed to fetch products'));
     }

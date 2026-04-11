@@ -1,8 +1,8 @@
 import api from './api';
 import { ProductFormData } from '../types/product';
 
-export const getAll = async (page = 1, limit = 10, userId?: string) => {
-  const { data } = await api.get('/products', { params: { page, limit, userId } });
+export const getAll = async (page = 1, limit = 10, userId?: string, scope?: string) => {
+  const { data } = await api.get('/products', { params: { page, limit, userId, scope } });
   return data;
 };
 
