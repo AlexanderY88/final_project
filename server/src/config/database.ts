@@ -37,6 +37,8 @@ interface DatabaseConfig {
  */
 const getDatabaseConfig = (): DatabaseConfig => {
   const isProduction = process.env.NODE_ENV === 'production';
+  const mongoUri = process.env.MONGODB_URI || '';
+  const isCloudMongo = mongoUri.includes('mongodb.net') || mongoUri.includes('cosmos.azure.com');
   
   // Base connection options shared across environments
   const baseOptions: mongoose.ConnectOptions = {
@@ -48,12 +50,12 @@ const getDatabaseConfig = (): DatabaseConfig => {
   if (isProduction) {
     // Production Configuration for Azure CosmosDB or MongoDB Atlas
     return {
-      uri: process.env.MONGODB_URI || '',
+      uri: mongoUri,
       options: {
         ...baseOptions,
         retryWrites: true,              // Enable retry writes for transactions
         w: 'majority',                  // Write concern for data consistency
-        ssl: true,                      // Required for Azure CosmosDB and Atlas
+        ssl: isCloudMongo,              // Required for Atlas/Cosmos, but breaks local MongoDB
         bufferCommands: false,          // Disable command buffering in production
       }
     };
