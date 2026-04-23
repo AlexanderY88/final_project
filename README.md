@@ -42,13 +42,14 @@ There are three package manifests in this repo:
 Recommended installation from the project root:
 
 ```bash
+npm install
 npm run install:all
 ```
 
 This installs dependencies for:
-- root
-- client
-- server
+- root via `npm install`
+- client via `npm run install:all`
+- server via `npm run install:all`
 
 Manual installation is also possible:
 
@@ -135,7 +136,7 @@ What the production root flow does:
 
 Root `package.json`:
 - `npm run dev`: run client and server together in development
-- `npm run install:all`: install root, client, and server dependencies
+- `npm run install:all`: install client and server dependencies (run `npm install` first for root dependencies)
 - `npm run build`: build the client
 - `npm run server:build`: build the server TypeScript output
 - `npm run client:build`: build the client
