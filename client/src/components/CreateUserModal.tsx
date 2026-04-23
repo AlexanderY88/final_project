@@ -4,7 +4,7 @@ import * as userService from '../services/users';
 import { User } from '../types/auth';
 import { createUserSchema, getFieldErrorWithJoi, validateWithJoi } from '../utils/validation';
 
-type UserRole = 'admin' | 'main_brunch' | 'user';
+type UserRole = 'admin' | 'main_branch' | 'user';
 
 interface CreateUserFormData {
   firstName: string;
@@ -19,7 +19,7 @@ interface CreateUserFormData {
   street: string;
   houseNumber: string;
   zip: string;
-  mainBrunchId: string;
+  mainBranchId: string;
 }
 
 const createInitialFormData = (): CreateUserFormData => ({
@@ -28,14 +28,14 @@ const createInitialFormData = (): CreateUserFormData => ({
   email: '',
   password: '',
   confirmPassword: '',
-  role: 'main_brunch',
+  role: 'main_branch',
   phone: '',
   city: 'Tel Aviv',
   country: 'Israel',
   street: '',
   houseNumber: '',
   zip: '',
-  mainBrunchId: '',
+  mainBranchId: '',
 });
 
 const getInputClass = (hasError: boolean) =>
@@ -124,7 +124,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         street: formData.street.trim(),
         houseNumber: Number(formData.houseNumber),
         zip: Number(formData.zip),
-        ...(formData.role === 'user' && formData.mainBrunchId && { mainBrunchId: formData.mainBrunchId }),
+        ...(formData.role === 'user' && formData.mainBranchId && { mainBranchId: formData.mainBranchId }),
       };
 
       await userService.createUser(userData);
@@ -145,7 +145,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   if (!isOpen) return null;
 
-  const isBranchRole = formData.role === 'main_brunch' || formData.role === 'user';
+  const isBranchRole = formData.role === 'main_branch' || formData.role === 'user';
   const firstNameLabel = isBranchRole ? 'Branch Name *' : 'First Name *';
   const lastNameLabel = isBranchRole ? 'Manager *' : 'Last Name *';
   const firstNamePlaceholder = isBranchRole ? 'e.g. North Branch' : 'e.g. John';
@@ -275,7 +275,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
                 <option value="user">Child Branch</option>
-                <option value="main_brunch">Main Branch</option>
+                <option value="main_branch">Main Branch</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -283,15 +283,15 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             {/* Main Branch Selection (if role is user) */}
             {formData.role === 'user' && (
               <div className="md:col-span-2">
-                <label htmlFor="mainBrunchId" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="mainBranchId" className="block text-sm font-medium text-gray-700 mb-1">
                   Parent Main Branch *
                 </label>
                 <select
-                  id="mainBrunchId"
-                  name="mainBrunchId"
-                  value={formData.mainBrunchId}
+                  id="mainBranchId"
+                  name="mainBranchId"
+                  value={formData.mainBranchId}
                   onChange={handleChange}
-                  className={getInputClass(!!errors.mainBrunchId)}
+                  className={getInputClass(!!errors.mainBranchId)}
                 >
                   <option value="">Select a main branch</option>
                   {mainBranches.map(branch => (
@@ -300,8 +300,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                     </option>
                   ))}
                 </select>
-                {errors.mainBrunchId && (
-                  <p className="text-red-600 text-xs mt-1">{errors.mainBrunchId}</p>
+                {errors.mainBranchId && (
+                  <p className="text-red-600 text-xs mt-1">{errors.mainBranchId}</p>
                 )}
               </div>
             )}

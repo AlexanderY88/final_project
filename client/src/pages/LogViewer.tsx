@@ -193,7 +193,7 @@ const LogViewer: React.FC = () => {
   }, [activeDateRange, logType, minAllowedDate, selectedUserId]);
 
   useEffect(() => {
-    if (user && (user.isAdmin || user.isMainBrunch)) {
+    if (user && (user.isAdmin || user.isMainBranch)) {
       fetchLogs();
     }
   }, [fetchLogs, user]);
@@ -214,7 +214,7 @@ const LogViewer: React.FC = () => {
     }
   };
 
-  if (!user || (!user.isAdmin && !user.isMainBrunch)) {
+  if (!user || (!user.isAdmin && !user.isMainBranch)) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="text-6xl mb-4">🚫</div>

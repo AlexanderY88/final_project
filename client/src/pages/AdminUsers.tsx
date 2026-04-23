@@ -16,7 +16,7 @@ const AdminUsers: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [mainBranches, setMainBranches] = useState<User[]>([]);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'main_brunch' | 'user'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'main_branch' | 'user'>('all');
   const [cityFilter, setCityFilter] = useState('');
 
   useEffect(() => {
@@ -56,14 +56,14 @@ const AdminUsers: React.FC = () => {
 
   const getRoleLabel = (u: User) => {
     if (u.isAdmin) return 'Admin';
-    if (u.isMainBrunch) return 'Main Branch';
+    if (u.isMainBranch) return 'Main Branch';
     return 'Child Branch';
   };
 
     useEffect(() => {
       const fetchMainBranches = async () => {
         try {
-          const response = await userService.getAllUsers({ role: 'main_brunch' });
+          const response = await userService.getAllUsers({ role: 'main_branch' });
           setMainBranches(response);
         } catch (error) {
           console.error('Failed to fetch main branches:', error);
@@ -77,7 +77,7 @@ const AdminUsers: React.FC = () => {
     };
   const getRoleColor = (u: User) => {
     if (u.isAdmin) return 'bg-purple-100 text-purple-700';
-    if (u.isMainBrunch) return 'bg-blue-100 text-blue-700';
+    if (u.isMainBranch) return 'bg-blue-100 text-blue-700';
     return 'bg-gray-100 text-gray-700';
   };
 
@@ -88,8 +88,8 @@ const AdminUsers: React.FC = () => {
   };
 
   const adminCount = users.filter((u) => u.isAdmin).length;
-  const mainBranchCount = users.filter((u) => u.isMainBrunch && !u.isAdmin).length;
-  const childBranchCount = users.filter((u) => !u.isMainBrunch && !u.isAdmin).length;
+  const mainBranchCount = users.filter((u) => u.isMainBranch && !u.isAdmin).length;
+  const childBranchCount = users.filter((u) => !u.isMainBranch && !u.isAdmin).length;
 
   if (isLoading && users.length === 0) {
     return (
@@ -169,12 +169,12 @@ const AdminUsers: React.FC = () => {
             <select
               title="Filter by role"
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value as 'all' | 'admin' | 'main_brunch' | 'user')}
+              onChange={(e) => setRoleFilter(e.target.value as 'all' | 'admin' | 'main_branch' | 'user')}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
               <option value="all">All roles</option>
               <option value="admin">Admin</option>
-              <option value="main_brunch">Main Branch</option>
+              <option value="main_branch">Main Branch</option>
               <option value="user">Child Branch</option>
             </select>
           </div>

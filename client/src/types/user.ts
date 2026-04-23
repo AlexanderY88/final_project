@@ -1,6 +1,6 @@
 import { User } from './auth';
 
-export interface CreateChildBrunchData {
+export interface CreateChildBranchData {
   firstName: string;
   lastName: string;
   email: string;
@@ -11,7 +11,7 @@ export interface CreateChildBrunchData {
   street: string;
   houseNumber: number;
   zip: number;
-  mainBrunchId?: string;
+  mainBranchId?: string;
 }
 
 export interface ChildBranchesResponse {

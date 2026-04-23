@@ -33,7 +33,7 @@ const registerSchema = joi.object({
     street: joi.string().required(),
     houseNumber: joi.number().integer().min(1).required(),
     zip: joi.string().allow('').optional(),
-    role: joi.string().valid('user', 'main_brunch', 'admin').default('main_brunch'),
+    role: joi.string().valid('user', 'main_branch', 'admin').default('main_branch'),
 });
 
 const loginSchema = joi.object({
@@ -44,7 +44,7 @@ const loginSchema = joi.object({
     password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/)
 });
 
-const childBrunchSchema = joi.object({
+const childBranchSchema = joi.object({
     firstName: joi.string().required(),
     lastName: joi.string().required(),
     email: joi.string().trim().lowercase().pattern(SIMPLE_EMAIL_REGEX).required().messages({
@@ -58,7 +58,7 @@ const childBrunchSchema = joi.object({
     street: joi.string().required(),
     houseNumber: joi.number().integer().min(1).required(),
     zip: joi.number().integer().min(10000).max(999999999).optional(),
-    mainBrunchId: joi.string().optional(),
+    mainBranchId: joi.string().optional(),
 });
 
 const createUserSchema = joi.object({
@@ -69,14 +69,14 @@ const createUserSchema = joi.object({
         'string.empty': 'Email is required.',
     }),
     password: joi.string().required().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/),
-    role: joi.string().valid('user', 'main_brunch', 'admin').default('main_brunch'),
+    role: joi.string().valid('user', 'main_branch', 'admin').default('main_branch'),
     phone: joi.string().allow('').optional(),
     city: joi.string().required(),
     country: joi.string().required(),
     street: joi.string().required(),
     houseNumber: joi.number().integer().min(1).required(),
     zip: joi.number().integer().min(10000).max(999999999).required(),
-    mainBrunchId: joi.string().optional(),
+    mainBranchId: joi.string().optional(),
 });
 
 const updateProfileSchema = joi.object({
@@ -89,7 +89,7 @@ const updateProfileSchema = joi.object({
     phone: joi.string().allow('').optional(),
     password: joi.string().min(6).pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.!_@#$%^&*-])[A-Za-z\d.!_@#$%^&*-]{6,}$/).optional(),
     isAdmin: joi.boolean().optional(),
-    isMainBrunch: joi.boolean().optional(),
+    isMainBranch: joi.boolean().optional(),
     address: joi.object({
         state: joi.string().allow('').optional(),
         country: joi.string().min(2).max(100).optional(),
@@ -103,7 +103,7 @@ const updateProfileSchema = joi.object({
 // Helper: get role string from user document
 function getUserRole(user) {
     if (user.isAdmin) return 'admin';
-    if (user.isMainBrunch) return 'main_brunch';
+    if (user.isMainBranch) return 'main_branch';
     return 'user';
 }
 
@@ -112,36 +112,37 @@ function getUserRole(user) {
 // Register
 router.post("/register", logAuthEvent('register'), async (req, res) => {
     try {
-        const { error } = registerSchema.validate(req.body);
+        const { error, value } = registerSchema.validate(req.body);
         if (error) return res.status(400).send(error.details[0].message);
 
-        let existing = await User.findOne({ email: req.body.email });
+        let existing = await User.findOne({ email: value.email });
         if (existing) return res.status(400).json({ message: "User already exists" });
 
         // Map flat fields to the User schema
+        // Use validated 'value' which includes defaults (role defaults to 'main_branch')
         const user = new User({
-            name: { first: req.body.firstName, last: req.body.lastName },
-            email: req.body.email,
-            password: req.body.password,
-            phone: req.body.phone,
+            name: { first: value.firstName, last: value.lastName },
+            email: value.email,
+            password: value.password,
+            phone: value.phone,
             address: {
-                country: req.body.country,
-                city: req.body.city,
-                street: req.body.street,
-                houseNumber: Number(req.body.houseNumber),
-                zip: req.body.zip ? Number(req.body.zip) : 10000,
+                country: value.country,
+                city: value.city,
+                street: value.street,
+                houseNumber: Number(value.houseNumber),
+                zip: value.zip ? Number(value.zip) : 10000,
             },
-            isMainBrunch: req.body.role === 'main_brunch',
-            isAdmin: req.body.role === 'admin',
+            isMainBranch: value.role === 'main_branch',
+            isAdmin: value.role === 'admin',
         });
 
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(user.password, salt);
         await user.save();
 
-        // If main branch, store own ID in brunches for linking children later
-        if (user.isMainBrunch) {
-            user.brunches = [user._id];
+        // If main branch, store own ID in branches for linking children later
+        if (user.isMainBranch) {
+            user.branches = [user._id];
             await user.save();
         }
 
@@ -215,8 +216,8 @@ router.get("/all", authMiddleware, async (req, res) => {
 
         if (role) {
             if (role === 'admin') { query.isAdmin = true; }
-            else if (role === 'main_brunch') { query.isMainBrunch = true; query.isAdmin = false; }
-            else if (role === 'user') { query.isMainBrunch = false; query.isAdmin = false; }
+            else if (role === 'main_branch') { query.isMainBranch = true; query.isAdmin = false; }
+            else if (role === 'user') { query.isMainBranch = false; query.isAdmin = false; }
         }
 
         if (city) {
@@ -232,27 +233,27 @@ router.get("/all", authMiddleware, async (req, res) => {
 });
 
 // Get child branches
-router.get("/child-brunches", authMiddleware, async (req, res) => {
+router.get("/child-branches", authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
-        const { mainBrunchId } = req.query;
+        const { mainBranchId } = req.query;
 
-        if (currentUser.role !== 'main_brunch' && currentUser.role !== 'admin') {
+        if (currentUser.role !== 'main_branch' && currentUser.role !== 'admin') {
             return res.status(403).json({ message: "Access denied" });
         }
 
         const getChildrenForMainBranch = async (mainBranchDoc) => {
             if (!mainBranchDoc) return [];
 
-            // Direction 1: child document points to main via child.brunches = [mainId]
+            // Direction 1: child document points to main via child.branches = [mainId]
             const childrenByChildLink = await User.find({
-                brunches: mainBranchDoc._id,
-                isMainBrunch: false,
+                branches: mainBranchDoc._id,
+                isMainBranch: false,
                 isAdmin: false,
             }).select('-password');
 
-            // Direction 2: main document points to children via main.brunches = [mainId, childId, ...]
-            const linkedChildIds = (mainBranchDoc.brunches || [])
+            // Direction 2: main document points to children via main.branches = [mainId, childId, ...]
+            const linkedChildIds = (mainBranchDoc.branches || [])
                 .map((id) => id.toString())
                 .filter((id) => id !== mainBranchDoc._id.toString());
 
@@ -260,7 +261,7 @@ router.get("/child-brunches", authMiddleware, async (req, res) => {
             if (linkedChildIds.length > 0) {
                 childrenByMainLink = await User.find({
                     _id: { $in: linkedChildIds },
-                    isMainBrunch: false,
+                    isMainBranch: false,
                     isAdmin: false,
                 }).select('-password');
             }
@@ -275,16 +276,16 @@ router.get("/child-brunches", authMiddleware, async (req, res) => {
 
         let childBranches;
         if (currentUser.role === 'admin') {
-            if (mainBrunchId) {
-                const mainBranch = await User.findById(mainBrunchId);
-                if (!mainBranch || !mainBranch.isMainBrunch) {
+            if (mainBranchId) {
+                const mainBranch = await User.findById(mainBranchId);
+                if (!mainBranch || !mainBranch.isMainBranch) {
                     return res.status(400).json({ message: "Invalid main branch" });
                 }
 
                 childBranches = await getChildrenForMainBranch(mainBranch);
             } else {
                 // Admin sees all child branch users if no main branch context is provided
-                childBranches = await User.find({ isAdmin: false, isMainBrunch: false }).select('-password');
+                childBranches = await User.find({ isAdmin: false, isMainBranch: false }).select('-password');
             }
         } else {
             // Main branch sees children in both relationship directions.
@@ -302,19 +303,19 @@ router.get("/child-brunches", authMiddleware, async (req, res) => {
 });
 
 // Create child branch
-router.post("/create-child-brunch", authMiddleware, async (req, res) => {
+router.post("/create-child-branch", authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
 
-        if (currentUser.role !== 'main_brunch' && currentUser.role !== 'admin') {
+        if (currentUser.role !== 'main_branch' && currentUser.role !== 'admin') {
             return res.status(403).json({ message: "Access denied" });
         }
 
-        if (currentUser.role === 'admin' && !req.body.mainBrunchId) {
-            return res.status(400).json({ message: "mainBrunchId is required when admin creates child branch" });
+        if (currentUser.role === 'admin' && !req.body.mainBranchId) {
+            return res.status(400).json({ message: "mainBranchId is required when admin creates child branch" });
         }
 
-        const { error } = childBrunchSchema.validate(req.body);
+        const { error } = childBranchSchema.validate(req.body);
         if (error) return res.status(400).json({ message: error.details[0].message });
 
         let existingByEmail = await User.findOne({ email: req.body.email });
@@ -326,8 +327,8 @@ router.post("/create-child-brunch", authMiddleware, async (req, res) => {
         // Determine which main branch to link to
         let parentId;
         if (currentUser.role === 'admin') {
-            const mainUser = await User.findById(req.body.mainBrunchId);
-            if (!mainUser || !mainUser.isMainBrunch) {
+            const mainUser = await User.findById(req.body.mainBranchId);
+            if (!mainUser || !mainUser.isMainBranch) {
                 return res.status(400).json({ message: "Invalid main branch" });
             }
             parentId = mainUser._id;
@@ -347,9 +348,9 @@ router.post("/create-child-brunch", authMiddleware, async (req, res) => {
                 houseNumber: req.body.houseNumber,
                 zip: req.body.zip || 10000,
             },
-            isMainBrunch: false,
+            isMainBranch: false,
             isAdmin: false,
-            brunches: [parentId],
+            branches: [parentId],
         });
 
         const salt = await bcrypt.genSalt(10);
@@ -394,17 +395,17 @@ router.post("/create-user", authMiddleware, async (req, res) => {
         // Determine role
         const role = req.body.role || 'user';
         const isAdmin = role === 'admin';
-        const isMainBrunch = role === 'main_brunch';
+        const isMainBranch = role === 'main_branch';
 
         // For child branches, require a main branch ID
         let parentId = null;
-        if (role === 'user' && !req.body.mainBrunchId) {
-            return res.status(400).json({ message: "mainBrunchId is required when creating a child branch user" });
+        if (role === 'user' && !req.body.mainBranchId) {
+            return res.status(400).json({ message: "mainBranchId is required when creating a child branch user" });
         }
 
-        if (role === 'user' && req.body.mainBrunchId) {
-            const mainUser = await User.findById(req.body.mainBrunchId);
-            if (!mainUser || !mainUser.isMainBrunch) {
+        if (role === 'user' && req.body.mainBranchId) {
+            const mainUser = await User.findById(req.body.mainBranchId);
+            if (!mainUser || !mainUser.isMainBranch) {
                 return res.status(400).json({ message: "Invalid main branch ID" });
             }
             parentId = mainUser._id;
@@ -422,9 +423,9 @@ router.post("/create-user", authMiddleware, async (req, res) => {
                 houseNumber: req.body.houseNumber || 1,
                 zip: req.body.zip || 10000
             },
-            isMainBrunch: isMainBrunch,
+            isMainBranch: isMainBranch,
             isAdmin: isAdmin,
-            brunches: parentId ? [parentId] : [],
+            branches: parentId ? [parentId] : [],
         });
 
         const salt = await bcrypt.genSalt(10);
@@ -454,8 +455,8 @@ router.put("/update-profile/:id", authMiddleware, async (req, res) => {
         // Permission check
         const isOwn = currentUser._id.toString() === id;
         const isAdminUser = currentUser.role === 'admin';
-        const isMainManagingChild = currentUser.role === 'main_brunch' && !target.isAdmin && !target.isMainBrunch;
-        const isMainEditingSelf = currentUser.role === 'main_brunch' && isOwn;
+        const isMainManagingChild = currentUser.role === 'main_branch' && !target.isAdmin && !target.isMainBranch;
+        const isMainEditingSelf = currentUser.role === 'main_branch' && isOwn;
 
         if (!isAdminUser && !isMainManagingChild && !isMainEditingSelf) {
             return res.status(403).json({ message: "Access denied" });
@@ -464,7 +465,7 @@ router.put("/update-profile/:id", authMiddleware, async (req, res) => {
         // Only admins can change roles
         if (currentUser.role !== 'admin') {
             delete req.body.isAdmin;
-            delete req.body.isMainBrunch;
+            delete req.body.isMainBranch;
         }
 
         // Build update data
@@ -516,8 +517,8 @@ router.put("/change-password/:id", authMiddleware, async (req, res) => {
         // Permission check - admin can update any password, main branch can update self or child branch passwords.
         const isOwn = currentUser._id.toString() === id;
         const isAdminUser = currentUser.role === 'admin';
-        const isMainManagingChild = currentUser.role === 'main_brunch' && !target.isAdmin && !target.isMainBrunch;
-        const isMainEditingSelf = currentUser.role === 'main_brunch' && isOwn;
+        const isMainManagingChild = currentUser.role === 'main_branch' && !target.isAdmin && !target.isMainBranch;
+        const isMainEditingSelf = currentUser.role === 'main_branch' && isOwn;
 
         if (!isAdminUser && !isMainManagingChild && !isMainEditingSelf) {
             return res.status(403).json({ message: "Access denied" });
@@ -550,7 +551,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
         // Permission check
         const isOwn = currentUser._id.toString() === id;
         const isAdminUser = currentUser.role === 'admin';
-        const isMainViewingChild = currentUser.role === 'main_brunch' && !target.isAdmin && !target.isMainBrunch;
+        const isMainViewingChild = currentUser.role === 'main_branch' && !target.isAdmin && !target.isMainBranch;
 
         if (!isOwn && !isAdminUser && !isMainViewingChild) {
             return res.status(403).json({ message: "Access denied" });
@@ -574,7 +575,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
         // Permission check
         const isOwn = currentUser._id.toString() === id;
         const isAdminUser = currentUser.role === 'admin';
-        const isMainDeletingChild = currentUser.role === 'main_brunch' && !target.isAdmin && !target.isMainBrunch;
+        const isMainDeletingChild = currentUser.role === 'main_branch' && !target.isAdmin && !target.isMainBranch;
 
         if (isAdminUser && isOwn) {
             return res.status(403).json({ message: "Admin cannot delete themselves" });
@@ -585,8 +586,8 @@ router.delete("/:id", authMiddleware, async (req, res) => {
         }
 
         // If deleting a main branch, also delete its child branches
-        if (target.isMainBrunch && target.brunches?.length > 0) {
-            await User.deleteMany({ brunches: { $in: target.brunches }, isMainBrunch: false });
+        if (target.isMainBranch && target.branches?.length > 0) {
+            await User.deleteMany({ branches: { $in: target.branches }, isMainBranch: false });
         }
 
         await User.deleteOne({ _id: id });

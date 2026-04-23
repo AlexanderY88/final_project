@@ -21,7 +21,7 @@ export interface Product {
   createdBy: {
     userId: string;
     username: string;
-    role: 'admin' | 'main_brunch' | 'user';
+    role: 'admin' | 'main_branch' | 'user';
     branchName?: string;
   };
   createdAt: string;

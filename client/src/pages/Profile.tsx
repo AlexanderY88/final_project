@@ -21,7 +21,7 @@ const Profile: React.FC = () => {
   const [error, setError] = useState('');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showConfirm, setShowConfirm] = useState(false);
-  const [pendingRoleChange, setPendingRoleChange] = useState<'admin' | 'main_brunch' | 'user' | null>(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState<'admin' | 'main_branch' | 'user' | null>(null);
   const [roleChanging, setRoleChanging] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
@@ -33,11 +33,11 @@ const Profile: React.FC = () => {
   const from = searchParams.get('from');
   const mainBranchId = searchParams.get('mainBranchId');
   const isAdminEditingOtherUser = !!(user?.isAdmin && selectedUserId);
-  const isMainBranchEditingChild = !!(user?.isMainBrunch && selectedUserId);
+  const isMainBranchEditingChild = !!(user?.isMainBranch && selectedUserId);
   const isEditingSelectedUser = isAdminEditingOtherUser || isMainBranchEditingChild;
   const currentProfileUser = isEditingSelectedUser ? profileUser : user;
-  const canEditProfile = !!(user?.isAdmin || user?.isMainBrunch);
-  const canChangePassword = !!(user?.isAdmin || user?.isMainBrunch);
+  const canEditProfile = !!(user?.isAdmin || user?.isMainBranch);
+  const canChangePassword = !!(user?.isAdmin || user?.isMainBranch);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -127,7 +127,7 @@ const Profile: React.FC = () => {
 
   const getRoleValue = (u: User) => {
     if (u.isAdmin) return 'admin';
-    if (u.isMainBrunch) return 'main_brunch';
+    if (u.isMainBranch) return 'main_branch';
     return 'user';
   };
 
@@ -137,7 +137,7 @@ const Profile: React.FC = () => {
     try {
       const updatedUser = await userService.updateProfile(currentProfileUser._id, {
         isAdmin: pendingRoleChange === 'admin',
-        isMainBrunch: pendingRoleChange === 'main_brunch',
+        isMainBranch: pendingRoleChange === 'main_branch',
       });
       setProfileUser(updatedUser);
       toast.success('Role updated successfully');
@@ -260,8 +260,8 @@ const Profile: React.FC = () => {
     );
   }
 
-  const roleLabel = currentProfileUser.isAdmin ? 'Admin' : currentProfileUser.isMainBrunch ? 'Main Branch' : 'Branch User';
-  const roleLabelMap: Record<string, string> = { admin: 'Admin', main_brunch: 'Main Branch', user: 'Child Branch' };
+  const roleLabel = currentProfileUser.isAdmin ? 'Admin' : currentProfileUser.isMainBranch ? 'Main Branch' : 'Branch User';
+  const roleLabelMap: Record<string, string> = { admin: 'Admin', main_branch: 'Main Branch', user: 'Child Branch' };
   const isBranchProfileUser = !currentProfileUser.isAdmin;
   const firstNameLabel = isBranchProfileUser ? 'Branch Name' : 'First Name';
   const lastNameLabel = isBranchProfileUser ? 'Manager' : 'Last Name';
@@ -269,7 +269,7 @@ const Profile: React.FC = () => {
     ? 'Update User'
     : isMainBranchEditingChild
     ? 'Child Branch Details'
-    : user?.isMainBrunch
+    : user?.isMainBranch
     ? 'Main Branch Details'
     : 'Branch Details';
 
@@ -481,12 +481,12 @@ const Profile: React.FC = () => {
                 title="Select new role"
                 defaultValue={getRoleValue(currentProfileUser)}
                 key={currentProfileUser._id}
-                onChange={e => setPendingRoleChange(e.target.value as 'admin' | 'main_brunch' | 'user')}
+                onChange={e => setPendingRoleChange(e.target.value as 'admin' | 'main_branch' | 'user')}
                 disabled={roleChanging}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
                 <option value="user">Child Branch</option>
-                <option value="main_brunch">Main Branch</option>
+                <option value="main_branch">Main Branch</option>
                 <option value="admin">Admin</option>
               </select>
               <span className="text-sm text-gray-500">{roleChanging ? 'Updating...' : 'Select a role to change it'}</span>

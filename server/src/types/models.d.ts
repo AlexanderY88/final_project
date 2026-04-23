@@ -9,7 +9,7 @@ declare module '../models/User' {
     phone: string;
     email: string;
     password: string;
-    role: 'admin' | 'main_brunch' | 'user';
+    role: 'admin' | 'main_branch' | 'user';
     branchName?: string;
     parentBranch?: string;
     created_at: Date;

@@ -28,8 +28,8 @@ router.get('/:type/:date/:hour?', authMiddleware, async (req, res) => {
         const { type, date, hour } = req.params;
         const currentUser = req.user;
         
-        // Only admin and main_brunch can access logs
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch') {
+        // Only admin and main_branch can access logs
+        if (currentUser.role !== 'admin' && currentUser.role !== 'main_branch') {
             return res.status(403).json({ 
                 message: "Access denied: Only admins and main branch managers can view logs" 
             });
@@ -67,11 +67,11 @@ router.get('/:type/:date/:hour?', authMiddleware, async (req, res) => {
         
         // Filter logs based on user permissions
         let filteredLogs = logs;
-        if (currentUser.role === 'main_brunch') {
+        if (currentUser.role === 'main_branch') {
             // Main branch can only see their branch logs
             filteredLogs = logs.filter(log => 
                 !log.branchId || 
-                (currentUser.brunches && currentUser.brunches.includes(log.branchId))
+                (currentUser.branches && currentUser.branches.includes(log.branchId))
             );
         }
         
@@ -96,8 +96,8 @@ router.get('/analytics/:date', authMiddleware, async (req, res) => {
         const { date } = req.params;
         const currentUser = req.user;
         
-        // Only admin and main_brunch can access analytics
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch') {
+        // Only admin and main_branch can access analytics
+        if (currentUser.role !== 'admin' && currentUser.role !== 'main_branch') {
             return res.status(403).json({ 
                 message: "Access denied: Only admins and main branch managers can view analytics" 
             });
@@ -114,11 +114,11 @@ router.get('/analytics/:date', authMiddleware, async (req, res) => {
         // Get analytics data
         const analytics = await loggingService.getBusinessAnalytics(date);
         
-        // Filter analytics for main_brunch users
-        if (currentUser.role === 'main_brunch' && currentUser.brunches) {
+        // Filter analytics for main_branch users
+        if (currentUser.role === 'main_branch' && currentUser.branches) {
             // Filter by branch access (this would need more detailed implementation)
             analytics.branchRestricted = true;
-            analytics.accessibleBranches = currentUser.brunches;
+            analytics.accessibleBranches = currentUser.branches;
         }
         
         res.status(200).json({
@@ -139,8 +139,8 @@ router.post('/search', authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
         
-        // Only admin and main_brunch can search logs
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch') {
+        // Only admin and main_branch can search logs
+        if (currentUser.role !== 'admin' && currentUser.role !== 'main_branch') {
             return res.status(403).json({ 
                 message: "Access denied: Only admins and main branch managers can search logs" 
             });
@@ -158,20 +158,20 @@ router.post('/search', authMiddleware, async (req, res) => {
         // Resolve allowed user IDs for admin impersonation
         let allowedUserIds = null; // null = no restriction
         if (currentUser.role === 'admin' && contextUserId) {
-            const contextUser = await User.findById(contextUserId).select('_id isAdmin isMainBrunch');
+            const contextUser = await User.findById(contextUserId).select('_id isAdmin isMainBranch');
             if (contextUser && !contextUser.isAdmin) {
                 allowedUserIds = [contextUser._id.toString()];
-                if (contextUser.isMainBrunch) {
-                    const children = await User.find({ brunches: contextUser._id, isMainBrunch: false, isAdmin: false }).select('_id');
+                if (contextUser.isMainBranch) {
+                    const children = await User.find({ branches: contextUser._id, isMainBranch: false, isAdmin: false }).select('_id');
                     allowedUserIds.push(...children.map(u => u._id.toString()));
                 }
                 // Product/API logs store actor userId. Include admin actor so context views
                 // don't become empty when admin performs actions inside selected branch context.
                 allowedUserIds.push(currentUser._id.toString());
             }
-        } else if (currentUser.role === 'main_brunch') {
+        } else if (currentUser.role === 'main_branch') {
             allowedUserIds = [currentUser._id.toString()];
-            const children = await User.find({ brunches: currentUser._id, isMainBrunch: false, isAdmin: false }).select('_id');
+            const children = await User.find({ branches: currentUser._id, isMainBranch: false, isAdmin: false }).select('_id');
             allowedUserIds.push(...children.map(u => u._id.toString()));
         }
         
@@ -202,7 +202,7 @@ router.post('/search', authMiddleware, async (req, res) => {
                 if (filters.operation && log.operation !== filters.operation) match = false;
                 if (filters.userRole && log.userRole !== filters.userRole) match = false;
                 
-                // Scope to allowed users (admin impersonation or main_brunch own scope)
+                // Scope to allowed users (admin impersonation or main_branch own scope)
                 if (allowedUserIds !== null && log.userId) {
                     const logUserId = toComparableUserId(log.userId);
                     if (!allowedUserIds.includes(logUserId)) match = false;
@@ -344,8 +344,8 @@ router.get('/errors/summary', authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
         
-        // Only admin and main_brunch can view error summaries  
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch') {
+        // Only admin and main_branch can view error summaries  
+        if (currentUser.role !== 'admin' && currentUser.role !== 'main_branch') {
             return res.status(403).json({ 
                 message: "Access denied: Only admins and main branch managers can view error summaries" 
             });
@@ -356,9 +356,9 @@ router.get('/errors/summary', authMiddleware, async (req, res) => {
         
         // Filter for branch access if needed
         let filteredErrors = errors;
-        if (currentUser.role === 'main_brunch' && currentUser.brunches) {
+        if (currentUser.role === 'main_branch' && currentUser.branches) {
             filteredErrors = errors.filter(error => 
-                !error.branchId || currentUser.brunches.includes(error.branchId)
+                !error.branchId || currentUser.branches.includes(error.branchId)
             );
         }
         

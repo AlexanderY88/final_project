@@ -21,7 +21,7 @@ const Branches: React.FC = () => {
   const selectedUserId = searchParams.get('userId') || undefined;
   const focusBranchId = searchParams.get('focusBranchId') || undefined;
   const isAdmin = !!currentUser?.isAdmin;
-  const mainBranchContextId = isAdmin ? selectedUserId : currentUser?.isMainBrunch ? currentUser._id : undefined;
+  const mainBranchContextId = isAdmin ? selectedUserId : currentUser?.isMainBranch ? currentUser._id : undefined;
   const canCreateBranch = !isAdmin || !!mainBranchContextId;
 
   const [form, setForm] = useState({
@@ -41,7 +41,7 @@ const Branches: React.FC = () => {
     ...form,
     houseNumber: form.houseNumber === '' ? undefined : Number(form.houseNumber),
     zip: form.zip === '' ? '' : Number(form.zip),
-    ...(mainBranchContextId ? { mainBrunchId: mainBranchContextId } : {}),
+    ...(mainBranchContextId ? { mainBranchId: mainBranchContextId } : {}),
   };
 
   useEffect(() => {
@@ -65,7 +65,7 @@ const Branches: React.FC = () => {
       ...nextForm,
       houseNumber: nextForm.houseNumber === '' ? undefined : Number(nextForm.houseNumber),
       zip: nextForm.zip === '' ? '' : Number(nextForm.zip),
-      ...(mainBranchContextId ? { mainBrunchId: mainBranchContextId } : {}),
+      ...(mainBranchContextId ? { mainBranchId: mainBranchContextId } : {}),
     };
 
     const fieldError = getFieldErrorWithJoi(childBranchSchema, normalized, name);
@@ -95,7 +95,7 @@ const Branches: React.FC = () => {
       email: String(form.email).trim().toLowerCase(),
       houseNumber: Number(form.houseNumber),
       zip: Number(form.zip || 10000),
-      ...(mainBranchContextId ? { mainBrunchId: mainBranchContextId } : {}),
+      ...(mainBranchContextId ? { mainBranchId: mainBranchContextId } : {}),
     };
 
     setCreating(true);

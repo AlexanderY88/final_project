@@ -46,8 +46,8 @@ const canMainBranchManageOwner = async (mainBranchUserId, ownerUserId) => {
 
     const isManagedChildByChildLink = await User.exists({
         _id: ownerId,
-        brunches: mainId,
-        isMainBrunch: false,
+        branches: mainId,
+        isMainBranch: false,
         isAdmin: false,
     });
 
@@ -58,8 +58,8 @@ const canMainBranchManageOwner = async (mainBranchUserId, ownerUserId) => {
     // Backward-compatible relationship direction (main branch stores child IDs).
     const isManagedChildByMainLink = await User.exists({
         _id: mainId,
-        brunches: ownerId,
-        isMainBrunch: true,
+        branches: ownerId,
+        isMainBranch: true,
         isAdmin: false,
     });
 
@@ -90,8 +90,8 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
         
         const currentUser = req.user;
         
-        // Role-based access control: admin, main_brunch, and child branches (user) can create products
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch' && currentUser.role !== 'user') {
+        // Role-based access control: admin, main_branch, and child branches (user) can create products
+        if (currentUser.role !== 'admin' && currentUser.role !== 'main_branch' && currentUser.role !== 'user') {
             // Clean up uploaded file if user doesn't have permission
             if (req.file) {
                 fs.unlink(req.file.path, (err) => {
@@ -127,7 +127,7 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
             return res.status(400).json({ message: 'Image description is required when an image is provided.' });
         }
 
-        let ownerUser = await User.findById(currentUser._id).select('_id name isAdmin isMainBrunch');
+        let ownerUser = await User.findById(currentUser._id).select('_id name isAdmin isMainBranch');
         if (!ownerUser) {
             if (req.file) {
                 fs.unlink(req.file.path, (err) => {
@@ -142,8 +142,8 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
                 ? value.contextUserId.trim()
                 : (typeof value.userId === 'string' ? value.userId.trim() : '')
         );
-        if ((currentUser.role === 'admin' || currentUser.role === 'main_brunch') && requestedContextUserId) {
-            const contextUser = await User.findById(requestedContextUserId).select('_id name isAdmin isMainBrunch');
+        if ((currentUser.role === 'admin' || currentUser.role === 'main_branch') && requestedContextUserId) {
+            const contextUser = await User.findById(requestedContextUserId).select('_id name isAdmin isMainBranch');
             if (!contextUser) {
                 if (req.file) {
                     fs.unlink(req.file.path, (err) => {
@@ -162,15 +162,15 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
                 return res.status(400).json({ message: 'Products must be created under a main branch or child branch context.' });
             }
 
-            if (currentUser.role === 'main_brunch') {
+            if (currentUser.role === 'main_branch') {
                 const currentUserId = currentUser._id.toString();
                 const contextUserId = contextUser._id.toString();
 
                 if (contextUserId !== currentUserId) {
                     const isManagedChild = await User.exists({
                         _id: contextUser._id,
-                        brunches: currentUser._id,
-                        isMainBrunch: false,
+                        branches: currentUser._id,
+                        isMainBranch: false,
                         isAdmin: false,
                     });
 
@@ -188,7 +188,7 @@ router.post('/create', authMiddleware, logProductOperation('create'), uploadWith
             ownerUser = contextUser;
         }
 
-        const ownerRole = ownerUser.isAdmin ? 'admin' : (ownerUser.isMainBrunch ? 'main_brunch' : 'user');
+        const ownerRole = ownerUser.isAdmin ? 'admin' : (ownerUser.isMainBranch ? 'main_branch' : 'user');
         
         // Prepare product data structure
         const productData = {
@@ -317,22 +317,22 @@ router.get('/', authMiddleware, async (req, res) => {
 
         // Scope products by viewing context
         if (currentUser.role === 'admin' && userId) {
-            const contextUser = await User.findById(userId).select('_id isAdmin isMainBrunch');
+            const contextUser = await User.findById(userId).select('_id isAdmin isMainBranch');
             if (!contextUser) {
                 return res.status(404).json({ message: 'Selected user context not found' });
             }
 
             if (!contextUser.isAdmin) {
-                if (contextUser.isMainBrunch) {
+                if (contextUser.isMainBranch) {
                     if (scope === 'all') {
                         const childrenByChildLink = await User.find({
-                            brunches: contextUser._id,
-                            isMainBrunch: false,
+                            branches: contextUser._id,
+                            isMainBranch: false,
                             isAdmin: false,
                         }).select('_id');
 
-                        const mainDoc = await User.findById(contextUser._id).select('_id brunches');
-                        const linkedChildIds = (mainDoc?.brunches || [])
+                        const mainDoc = await User.findById(contextUser._id).select('_id branches');
+                        const linkedChildIds = (mainDoc?.branches || [])
                             .map((id) => id.toString())
                             .filter((id) => id !== contextUser._id.toString());
 
@@ -340,7 +340,7 @@ router.get('/', authMiddleware, async (req, res) => {
                         if (linkedChildIds.length > 0) {
                             childrenByMainLink = await User.find({
                                 _id: { $in: linkedChildIds },
-                                isMainBrunch: false,
+                                isMainBranch: false,
                                 isAdmin: false,
                             }).select('_id');
                         }
@@ -359,10 +359,10 @@ router.get('/', authMiddleware, async (req, res) => {
                     query['createdBy.userId'] = contextUser._id;
                 }
             }
-        } else if (currentUser.role === 'main_brunch') {
+        } else if (currentUser.role === 'main_branch') {
             const childUsers = await User.find({
-                brunches: currentUser._id,
-                isMainBrunch: false,
+                branches: currentUser._id,
+                isMainBranch: false,
                 isAdmin: false,
             }).select('_id');
 
@@ -427,7 +427,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Update product with secure image upload - Available to: admin, main_brunch, user (child branches)
+// Update product with secure image upload - Available to: admin, main_branch, user (child branches)
 // Security features: File type validation, virus scanning, size limits, filename sanitization
 router.put('/:id', authMiddleware, logProductOperation('update'), uploadWithSecurity, async (req, res) => {
     try {
@@ -437,8 +437,8 @@ router.put('/:id', authMiddleware, logProductOperation('update'), uploadWithSecu
         const currentUser = req.user;
         const { id } = req.params;
         
-        // Admin, main_brunch, and child branches (user) can update products
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch' && currentUser.role !== 'user') {
+        // Admin, main_branch, and child branches (user) can update products
+        if (currentUser.role !== 'admin' && currentUser.role !== 'main_branch' && currentUser.role !== 'user') {
             if (req.file) {
                 fs.unlink(req.file.path, (err) => {
                     if (err) console.error('Error deleting file:', err);
@@ -461,7 +461,7 @@ router.put('/:id', authMiddleware, logProductOperation('update'), uploadWithSecu
         if (currentUser.role !== 'admin') {
             const productOwnerId = getProductOwnerId(product);
             
-            if (currentUser.role === 'main_brunch') {
+            if (currentUser.role === 'main_branch') {
                 const canManage = await canMainBranchManageOwner(currentUser._id, productOwnerId);
                 if (!canManage) {
                     if (req.file) fs.unlinkSync(req.file.path);
@@ -624,8 +624,8 @@ router.delete('/:id', authMiddleware, logProductOperation('delete'), async (req,
         const currentUser = req.user;
         const { id } = req.params;
         
-        // Admin, main_brunch, and child branches (user) can delete products
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch' && currentUser.role !== 'user') {
+        // Admin, main_branch, and child branches (user) can delete products
+        if (currentUser.role !== 'admin' && currentUser.role !== 'main_branch' && currentUser.role !== 'user') {
             return res.status(403).json({ message: "Access denied: Only admins, main branch managers, and child branches can delete products" });
         }
         
@@ -641,7 +641,7 @@ router.delete('/:id', authMiddleware, logProductOperation('delete'), async (req,
         if (currentUser.role !== 'admin') {
             const productOwnerId = getProductOwnerId(product);
             
-            if (currentUser.role === 'main_brunch') {
+            if (currentUser.role === 'main_branch') {
                 const canManage = await canMainBranchManageOwner(currentUser._id, productOwnerId);
                 if (!canManage) {
                     return res.status(403).json({ message: "Access denied: You do not manage this branch" });
@@ -677,15 +677,15 @@ router.delete('/:id', authMiddleware, logProductOperation('delete'), async (req,
     }
 });
 
-// Update product quantity only - Available to: admin, main_brunch, user (child branches)
+// Update product quantity only - Available to: admin, main_branch, user (child branches)
 router.patch('/:id/quantity', authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
         const { id } = req.params;
         const { quantity } = req.body;
         
-        // Admin, main_brunch, and child branches (user) can update quantity
-        if (currentUser.role !== 'admin' && currentUser.role !== 'main_brunch' && currentUser.role !== 'user') {
+        // Admin, main_branch, and child branches (user) can update quantity
+        if (currentUser.role !== 'admin' && currentUser.role !== 'main_branch' && currentUser.role !== 'user') {
             return res.status(403).json({ message: "Access denied: Only admins, main branch managers, and child branches can update product quantity" });
         }
         
@@ -706,7 +706,7 @@ router.patch('/:id/quantity', authMiddleware, async (req, res) => {
         if (currentUser.role !== 'admin') {
             const productOwnerId = getProductOwnerId(product);
 
-            if (currentUser.role === 'main_brunch') {
+            if (currentUser.role === 'main_branch') {
                 const canManage = await canMainBranchManageOwner(currentUser._id, productOwnerId);
                 if (!canManage) {
                     return res.status(403).json({ message: "Access denied: You do not manage this branch" });
@@ -784,13 +784,13 @@ router.patch('/:id/quantity', authMiddleware, async (req, res) => {
     }
 });
 
-// Get all child branches with their products and quantities - Available to: main_brunch only  
+// Get all child branches with their products and quantities - Available to: main_branch only  
 router.get('/branches/report', authMiddleware, async (req, res) => {
     try {
         const currentUser = req.user;
         
-        // Only main_brunch users can access this report (admin could also be allowed if needed)
-        if (currentUser.role !== 'main_brunch' && currentUser.role !== 'admin') {
+        // Only main_branch users can access this report (admin could also be allowed if needed)
+        if (currentUser.role !== 'main_branch' && currentUser.role !== 'admin') {
             return res.status(403).json({ message: "Access denied: Only main branch managers can view child branches report" });
         }
         
@@ -798,7 +798,7 @@ router.get('/branches/report', authMiddleware, async (req, res) => {
         const User = require('../src/models/User');
         
         // Find all child branch users (users with role 'user')
-        const childBranches = await User.find({ isAdmin: false, isMainBrunch: false }).select('_id name email phone createdAt');
+        const childBranches = await User.find({ isAdmin: false, isMainBranch: false }).select('_id name email phone createdAt');
         
         if (childBranches.length === 0) {
             return res.status(200).json({

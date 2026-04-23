@@ -40,7 +40,7 @@ const Header: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   const isAdmin = user?.isAdmin;
-  const isMainBranch = user?.isMainBrunch;
+  const isMainBranch = user?.isMainBranch;
 
   const userName = user?.name?.first || 'User';
   const profileLabel = isAuthenticated

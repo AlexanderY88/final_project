@@ -19,9 +19,9 @@ export interface User {
     houseNumber: number;
     zip: number;
   };
-  isMainBrunch: boolean;
+  isMainBranch: boolean;
   isAdmin: boolean;
-  brunches?: string[];
+  branches?: string[];
   createdAt: string;
   updatedAt: string;
 }

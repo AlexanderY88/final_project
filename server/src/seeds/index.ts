@@ -145,7 +145,7 @@ class DatabaseSeeder {
       
       const userCount = await User.countDocuments();
       const adminCount = await User.countDocuments({ role: 'admin' });
-      const branchCount = await User.countDocuments({ role: 'main_brunch' });
+      const branchCount = await User.countDocuments({ role: 'main_branch' });
       const regularUserCount = await User.countDocuments({ role: 'user' });
       
       const productCount = await Product.countDocuments();

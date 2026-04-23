@@ -94,7 +94,7 @@ export const registerSchema = Joi.object({
   street: requiredAddressText('Street'),
   houseNumber: positiveInteger('House number'),
   zip: optionalZipCode(),
-  role: Joi.string().valid('user', 'main_brunch').required().messages({
+  role: Joi.string().valid('user', 'main_branch').required().messages({
     'any.only': 'Please select a valid account type.',
   }),
 });
@@ -114,7 +114,7 @@ export const createUserSchema = Joi.object({
     'any.only': 'Passwords do not match.',
     'any.required': 'Confirm password is required.',
   }),
-  role: Joi.string().valid('admin', 'main_brunch', 'user').required().messages({
+  role: Joi.string().valid('admin', 'main_branch', 'user').required().messages({
     'any.only': 'Please select a valid role.',
     'string.empty': 'Role is required.',
   }),
@@ -124,7 +124,7 @@ export const createUserSchema = Joi.object({
   street: requiredAddressText('Street'),
   houseNumber: positiveInteger('House number'),
   zip: optionalZipCode(),
-  mainBrunchId: Joi.string().allow('').when('role', {
+  mainBranchId: Joi.string().allow('').when('role', {
     is: 'user',
     then: Joi.string().trim().required().messages({
       'string.empty': 'Main branch is required for child branch users.',
@@ -150,7 +150,7 @@ export const childBranchSchema = Joi.object({
   street: requiredAddressText('Street'),
   houseNumber: positiveInteger('House number'),
   zip: optionalZipCode(),
-  mainBrunchId: Joi.string().allow('').optional(),
+  mainBranchId: Joi.string().allow('').optional(),
 });
 
 export const contactUsSchema = Joi.object({

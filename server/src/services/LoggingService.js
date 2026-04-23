@@ -62,7 +62,7 @@ class LoggingService {
             userId: user?._id || null,
             userEmail: user?.email || null,
             userRole: user?.role || 'anonymous',
-            branchId: user?.brunches?.[0] || user?.branchId || null,
+            branchId: user?.branches?.[0] || user?.branchId || null,
             branchName: user?.branchName || 'Unknown',
 
             // Request Information  
@@ -190,7 +190,7 @@ class LoggingService {
             userId: user?._id || null,
             userEmail: user?.email || additionalData.email || null,
             userRole: user?.role || null,
-            branchId: user?.brunches?.[0] || null,
+            branchId: user?.branches?.[0] || null,
             
             // Request Information
             ip: req.ip || req.connection?.remoteAddress,

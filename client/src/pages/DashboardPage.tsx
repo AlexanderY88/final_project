@@ -9,11 +9,11 @@ const ADMIN_LAST_USER_KEY = 'adminDashboardLastUserId';
 
 const getUserRoleLabel = (targetUser: {
   isAdmin?: boolean;
-  isMainBrunch?: boolean;
+  isMainBranch?: boolean;
 } | null) => {
   if (!targetUser) return 'Branch User';
   if (targetUser.isAdmin) return 'Admin';
-  if (targetUser.isMainBrunch) return 'Main Branch';
+  if (targetUser.isMainBranch) return 'Main Branch';
   return 'Child Branch';
 };
 
@@ -70,15 +70,15 @@ const Dashboard: React.FC = () => {
     if (user?.isAdmin) {
       dispatch(fetchAllUsers());
     }
-    if (user?.isMainBrunch) {
+    if (user?.isMainBranch) {
       dispatch(fetchChildBranches());
     }
-  }, [dispatch, user?.isAdmin, user?.isMainBrunch]);
+  }, [dispatch, user?.isAdmin, user?.isMainBranch]);
 
   const role = getUserRoleLabel(user);
 
   const mainBranches = useMemo(
-    () => users.filter((u) => u.isMainBrunch && !u.isAdmin),
+    () => users.filter((u) => u.isMainBranch && !u.isAdmin),
     [users]
   );
 
@@ -92,7 +92,7 @@ const Dashboard: React.FC = () => {
     return refs
       .map((id) => usersById.get(id))
       .filter((u): u is NonNullable<typeof u> => !!u)
-      .filter((u) => !u.isMainBrunch && !u.isAdmin);
+      .filter((u) => !u.isMainBranch && !u.isAdmin);
   };
 
   const adminSelectedUser = useMemo(
@@ -120,9 +120,9 @@ const Dashboard: React.FC = () => {
   }, [users, adminSearch]);
 
   const selectedChildBranchForMain = useMemo(() => {
-    if (!user?.isMainBrunch || !selectedBranchUserId) return null;
+    if (!user?.isMainBranch || !selectedBranchUserId) return null;
     return childBranches.find((branch) => branch._id === selectedBranchUserId) || null;
-  }, [user?.isMainBrunch, selectedBranchUserId, childBranches]);
+  }, [user?.isMainBranch, selectedBranchUserId, childBranches]);
 
   useEffect(() => {
     if (!user?.isAdmin || usersLoading) return;
@@ -267,7 +267,7 @@ const Dashboard: React.FC = () => {
                   >
                     Products
                   </Link>
-                  {adminSelectedUser.isMainBrunch && !adminSelectedUser.isAdmin && (
+                  {adminSelectedUser.isMainBranch && !adminSelectedUser.isAdmin && (
                     <Link
                       to={adminContextPath('/branches', adminSelectedUser._id)}
                       className="bg-white border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm text-center"
@@ -366,7 +366,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {user.isMainBrunch ? (
+          {user.isMainBranch ? (
             <div className="child-branches-card bg-white rounded-xl shadow-md p-6">
               <h2 className="text-lg font-semibold text-gray-800 mb-4">Child Branches</h2>
 
@@ -467,7 +467,7 @@ const Dashboard: React.FC = () => {
           {!usersLoading && !usersError && mainBranches.length > 0 && (
             <div className="space-y-3">
               {mainBranches.map((mainBranch) => {
-                const children = getChildrenForMainBranch(mainBranch._id, mainBranch.brunches);
+                const children = getChildrenForMainBranch(mainBranch._id, mainBranch.branches);
                 const isOpen = !!expandedMainBranches[mainBranch._id];
 
                 return (

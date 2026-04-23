@@ -63,7 +63,7 @@ const userSchema = new mongoose.Schema({
             required: true
         }
     },
-    isMainBrunch: {
+    isMainBranch: {
         type: Boolean,
         required: true,
         default: true
@@ -73,9 +73,9 @@ const userSchema = new mongoose.Schema({
         required: true,
         default: false
     },
-    brunches: [{
+    branches: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: "brunches"
+        ref: "branches"
     }]
 
 }, {

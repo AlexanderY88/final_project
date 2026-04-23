@@ -37,7 +37,7 @@ export const seedUsers = async (): Promise<any[]> => {
       password: hashedPassword3,
       firstName: 'Branch',
       lastName: 'Manager',
-      role: 'main_brunch'
+      role: 'main_branch'
     },
     {
       email: 'alice.johnson@example.com',

@@ -1,144 +1,175 @@
-﻿# Final Project
+# Final Project
 
-Full-stack product management system:
-- Frontend: React + TypeScript (`client`)
-- Backend: Node.js + Express + MongoDB (`server`)
+StockManager is a full-stack inventory and branch-management application for businesses that work with multiple branches.
 
-## Quick Start
+The project includes:
+- A React + TypeScript client in `client/`
+- A Node.js + Express + MongoDB server in `server/`
+- Role-based access for admin, main branch, and child branch users
+- Product management, branch management, logs/history, mailbox, and image upload support
 
-1. Place the provided env file at `server/.env.development`.
-2. Install dependencies from project root: `npm run install:all`.
-3. Run locally from project root: `npm run dev`.
-4. Open:
-- Client: `http://localhost:3000`
-- Server health: `http://localhost:5000/api/health`
+## App Summary
 
-## What to submit to the teacher
+The app is built for a business structure with one or more main branches and optional child branches under each main branch.
 
-Include your provided environment file and tell the teacher to place it in:
-- `server/.env.development` for local development run
+Core business flows:
+- Manage users and branches
+- Create, edit, delete, and track products
+- Upload product images or use external image URLs
+- View product change history and system logs
+- Send and manage contact messages through the mailbox
 
-Important:
-- This project reads `server/.env.development` when running in development mode.
-- If your file name is different (for example `.env`), rename it to `.env.development`.
+## Tech Stack
+
+- Frontend: React 18, TypeScript, Redux Toolkit, React Router, Axios, Tailwind CSS, Joi
+- Backend: Node.js, Express, TypeScript, MongoDB, Mongoose, JWT, Multer, Sharp, Joi
+- Workspace scripts: npm, concurrently, serve, cross-env
 
 ## Prerequisites
 
-Install these on the local machine:
-- Node.js 18+ (LTS recommended)
+Install these before running the project:
+- Node.js 18+
 - npm 9+
-- MongoDB running locally (or a valid cloud `MONGODB_URI` inside the env file)
+- MongoDB running locally, or a valid remote `MONGODB_URI`
 
-Note:
-- The server now uses `sharp` to optimize uploaded product images automatically.
-- No extra env variables or manual config are required for this feature.
+## Dependencies And Installation
 
-## Local setup
+There are three package manifests in this repo:
+- Root: workspace scripts for running client and server together
+- `client/package.json`: frontend dependencies
+- `server/package.json`: backend dependencies
 
-From project root:
+Recommended installation from the project root:
 
 ```bash
 npm run install:all
 ```
 
-This installs dependencies for root, server, and client.
+This installs dependencies for:
+- root
+- client
+- server
 
-## Run locally
+Manual installation is also possible:
 
-From project root:
+```bash
+npm install
+cd client && npm install
+cd ../server && npm install
+```
+
+## Environment Files
+
+Development:
+- Put the development env file at `server/.env.development`
+
+Production:
+- Put the production env file at `server/.env.production`
+
+Important:
+- Local development reads `server/.env.development`
+- Production start reads `server/.env.production`
+
+## Run In Development
+
+From the project root:
 
 ```bash
 npm run dev
 ```
 
-This starts both apps together:
+This starts:
 - Client: `http://localhost:3000`
-- Server health endpoint: `http://localhost:5000/api/health`
+- Server: `http://localhost:5000`
+- Health endpoint: `http://localhost:5000/api/health`
 
-## Auto Seed In Development
-
-When the backend starts in `development`, it automatically runs incremental seed (`server/seed.js`).
-
-What it does:
-- Creates missing default users from seed data.
-- Skips users/products that already exist.
-- Does not wipe existing DB data.
-
-## Run separately (optional)
-
-Terminal 1:
+Optional separate run:
 
 ```bash
 cd server
 npm run dev
 ```
 
-Terminal 2:
-
 ```bash
 cd client
 npm start
 ```
 
-## Build for production (frontend)
+## Build And Run In Production
 
-From project root:
+Build the frontend only:
 
 ```bash
 npm run build
 ```
 
-## Run production locally
+Build both client and server:
 
-From project root:
+```bash
+npm run prod:build
+```
+
+Run the production version from the root:
 
 ```bash
 npm start
 ```
 
-or:
+Equivalent production commands:
 
 ```bash
 npm run start:prod
 ```
 
-or:
-
 ```bash
 npm run prod
 ```
 
-What it does:
-- Builds the server TypeScript output.
-- Builds the client production bundle.
-- Starts the backend in production mode.
-- Serves the frontend build on `http://localhost:3000`.
+What the production root flow does:
+- Builds the backend TypeScript output
+- Builds the frontend production bundle
+- Starts the backend from `server/dist`
+- Serves the client build on port `3000`
 
-Notes:
-- `npm start` now runs the production version from the project root.
-- `npm start prod` is not a valid npm command format.
+## Root Scripts
 
-Important:
-- Put your production env file at `server/.env.production`.
-- The backend runs on `http://localhost:5000`.
+Root `package.json`:
+- `npm run dev`: run client and server together in development
+- `npm run install:all`: install root, client, and server dependencies
+- `npm run build`: build the client
+- `npm run server:build`: build the server TypeScript output
+- `npm run client:build`: build the client
+- `npm run prod:build`: build server and client
+- `npm run prod`: build everything and run the production version
+- `npm start`: alias for the production flow from the root
 
-## Common issues
+Server `server/package.json`:
+- `npm run dev`: run backend in development with watch mode
+- `npm run build`: compile backend TypeScript to `dist/`
+- `npm run start`: run compiled backend in production mode
+- `npm run seed`: run incremental seed data
+- `npm run seed:fresh`: seed with clear mode
+- `npm run seed:force`: seed with force mode
+- `npm run seed:full`: run full sample seed script
+- `npm run db:reset`: clear and reseed in development
 
-1. Port already in use (`3000` or `5000`)
-- Stop old terminals/processes and run again.
+Client `client/package.json`:
+- `npm start`: run the frontend in development
+- `npm run build`: build the production bundle
+- `npm test`: run client tests
 
-2. MongoDB connection error
-- Make sure MongoDB is running.
-- Verify `MONGODB_URI` in `server/.env.development`.
+## Seed Data
 
-3. Missing script error from root
-- Use root commands exactly as written above (`npm run dev`, `npm run install:all`).
-- Use `npm start` only for the production run from the project root.
-- Use `npm run dev` for local development from the project root.
+When the backend starts in development, `server/seed.js` runs an incremental seed flow.
 
-4. Auto-seed did not run / test users are missing
-- Run seed manually from `server` folder.
-- PowerShell:
+It creates default users if they do not exist and does not wipe the database.
+
+Default development users from `server/seed.js`:
+- Admin: `admin@admin.com` / `Admin123!`
+- Main Branch: `main@branch.com` / `Business123!`
+- Child Branch: `north@branch.com` / `User123!`
+
+Manual seed example:
 
 ```powershell
 cd server
@@ -146,140 +177,172 @@ $env:NODE_ENV="development"
 node seed.js
 ```
 
-- Bash:
+## Roles And Permissions
 
-```bash
-cd server
-NODE_ENV=development node seed.js
-```
+### Admin
 
-- Then restart backend:
+Admin users can:
+- Open the Admin Users panel
+- Create admin, main branch, and child branch users
+- Edit any user
+- Change user roles
+- Delete users, except deleting themselves is blocked by the backend
+- Open dashboard context for any user
+- Open branch context for any main branch network
+- Create, edit, delete, and update quantity for products in selected context
+- View all mailbox conversations
+- Add mailbox comments, close messages, and reopen messages
+- View logs/history
+- Access all log types: product changes, auth events, API traffic, and error logs
 
-```bash
-npm run dev
-```
+### Main Branch
 
-5. Large product image upload fails
-- The backend accepts product images up to `10MB` and compresses them automatically with `sharp` before saving.
-- Uploaded product images are optimized on the server, usually converted to a smaller WebP file.
-- Files larger than `10MB` are rejected.
-- If an upload still fails, check that the file is a valid `jpg`, `jpeg`, `png`, or `webp` image.
+Main branch users can:
+- Open their own dashboard and products pages
+- Open the Branches page
+- Create child branches under their own main branch
+- Edit or delete child branches they manage
+- Edit their own profile and password
+- Edit child branch profiles and passwords they manage
+- Create, edit, delete, and update quantity for their own products
+- Create, edit, delete, and update quantity for products owned by their child branches
+- Use the mailbox for their own messages only
+- View logs/history for their own branch network only
 
-## Project scripts
+Main branch users cannot:
+- Open the Admin Users panel
+- Change roles
+- View API or error logs from the client UI
+- Manage users outside their own branch network
 
-Root (`package.json`):
-- `npm run dev` -> run server + client together
-- `npm run install:all` -> install dependencies for all parts
-- `npm run build` -> build client
-- `npm run prod` -> build server + client and run the production version locally
+### Child Branch
 
-Server (`server/package.json`):
-- `npm run dev` -> run backend in development
-- `npm run build` -> compile backend TypeScript to `dist/`
-- `npm run start` -> run compiled backend in production mode
-- `npm run seed:full` -> seed sample data
-- Server dependencies include `sharp` for automatic uploaded image compression
+Child branch users can:
+- Open their own dashboard and products pages
+- Create products for their own branch
+- Edit, delete, and update quantity only for their own products
+- View and update their own profile details depending on allowed profile flow
+- Use the mailbox for their own messages only
 
-Client (`client/package.json`):
-- `npm start` -> run frontend
-- `npm test` -> run frontend tests
+Child branch users cannot:
+- Open the Branches page
+- Open the Admin Users panel
+- Open the logs/history page
+- Manage other branches or other users
 
-## README files in this repo
+## Branch Logic
 
-There are 3 README files:
+The application models three business roles:
+- `admin`
+- `main_branch`
+- `user` for child branch
 
-- `README.md` - the main project README. This is the real entry point for running and submitting the project.
-- `client/README.md` - client-only note file. It is not the main project documentation.
-- `server/src/seeds/README.md` - seed-system documentation for developers. It is only relevant if you work on seed scripts.
+Business logic summary:
+- A main branch can see its own products and the products of its child branches
+- A main branch can create child branches under itself
+- A main branch can edit and delete only the child branches it manages
+- A main branch can manage products for itself and for its child branches
+- An admin can create, edit, and delete all branches and all users except self-delete
+- An admin can switch into a selected user or branch context from the dashboard and admin panel
+- A child branch is restricted to its own branch data for product actions
 
-If you only want to run or submit the project, use the root `README.md`.
+## Pages And Access
 
-## Test Users (Seed Data)
+| Page | Route | Access | Purpose |
+| --- | --- | --- | --- |
+| Login | `/login` | Public | Authenticate existing users |
+| Sign Up | `/register` | Public | Register a new account |
+| Session Expired | `/session-expired` | Public | Shown when auth/session is no longer valid |
+| About Us | `/about` | Public | Marketing and project background page |
+| Contact Us | `/contact` | Public to view, authenticated users to submit | Support/contact form |
+| Dashboard | `/dashboard` | Authenticated | Main landing page after login with role-specific context |
+| Products | `/products` | Authenticated | List products visible in current role/context |
+| Product Details | `/products/:id` | Authenticated | View one product in detail |
+| New Product | `/products/new` | Authenticated | Create a product in the current branch context |
+| Edit Product | `/products/:id/edit` | Authenticated with product ownership rules | Update product details and image |
+| Profile | `/profile` | Authenticated | View and update own profile, or selected user profile in admin/main-branch flows |
+| Branches | `/branches` | Main branch and admin branch-context flow | View, create, and manage child branches |
+| Admin Users | `/admin/users` | Admin | Search, filter, create, edit, and delete users |
+| Mailbox | `/mailbox` | Authenticated | View and manage your own contact messages |
+| Admin Mailbox | `/admin/mailbox` | Admin | View and manage all messages |
+| Logs / History | `/logs` | Admin and main branch | Review product changes and selected system logs |
 
-Seed runs automatically when backend starts in development.
-If users are missing, run seed manually:
+## Logs And History
 
-```bash
-cd server
-$env:NODE_ENV="development"
-node seed.js
-```
+The history/logs page is implemented by `LogViewer` and backend log routes.
 
-Available users from `server/seed.js`:
-- Admin
-	email: `admin@admin.com`
-	password: `Admin123!`
-- Main Branch
-	email: `main@branch.com`
-	password: `Business123!`
-- Child Branch
-	email: `north@branch.com`
-	password: `User123!`
+Current behavior:
+- Admin can open logs and view all supported log types
+- Main branch can open logs only for its own branch network
+- Child branch cannot open the logs page
 
----
+Available log types in the UI:
+- Product Changes: admin and main branch
+- Auth Events: admin and main branch
+- API Traffic: admin only
+- Error Logs: admin only
 
-## גרסה בעברית
+Important access note:
+- Admin can inspect branch context and branch-related history through selected-user flows
+- Main branch can review product history and related branch-network history only within its own scope
+- Child branches do not have direct access to the history page
 
-יש להדביק את הקובץ הסביבה שמצורף ואבקש לשים אותו כאן:
-- `server/.env.development`
+## Products And Images
 
-חשוב:
-- הפרויקט קורא קובץ `server/.env.development` במצב פיתוח.
-- אם שם הקובץ הוא `.env`, יש לשנות את השם ל-`.env.development`.
+Product image behavior:
+- A product can use either an uploaded image or an external image URL
+- Uploaded images are handled by Multer and optimized by Sharp
+- Source upload limit is `10MB`
+- Uploaded images are converted and stored as optimized WebP files
+- An image description (`imageAlt`) is required when an image is provided
 
-### דרישות מקדימות
+Product permission logic:
+- Admin can manage products in the selected branch context
+- Main branch can manage its own products and the products of its child branches
+- Child branch can manage only its own products
+- Product quantity updates are tracked and used in product history/log reporting
 
-יש לוודא שמותקן במחשב:
-- Node.js גרסה 18 ומעלה (מומלץ LTS)
-- npm גרסה 9 ומעלה
-- MongoDB מקומי פועל, או `MONGODB_URI` תקין בתוך קובץ הסביבה
+## Mailbox Logic
 
-### התקנה מקומית
+Mailbox behavior is role-aware:
+- Any authenticated user can submit a contact message from the Contact Us page
+- Non-admin users only see their own messages in the mailbox
+- Admin sees all messages
+- Messages support comments, close, and reopen actions
 
-מהתיקיה הראשית של הפרויקט:
+## Common Issues
 
-```bash
-npm run install:all
-```
+### Ports already in use
 
-### הרצת הפרויקט מקומית
+If port `3000` or `5000` is already in use:
+- Stop old terminals/processes
+- Start the app again
 
-מהתיקיה הראשית של הפרויקט:
+### MongoDB connection error
 
-```bash
-npm run dev
-```
+Check:
+- MongoDB is running
+- `MONGODB_URI` in `server/.env.development` is valid
 
-הפקודה מפעילה את שני הצדדים יחד:
-- צד לקוח: `http://localhost:3000`
-- בדיקת שרת: `http://localhost:5000/api/health`
+### Missing script error
 
-### הרצה בנפרד (אופציונלי)
+Use the root commands exactly as documented:
+- `npm run dev` for development
+- `npm run install:all` for installation
+- `npm start` only for the root production flow
 
-טרמינל 1:
+### Product image upload fails
 
-```bash
-cd server
-npm run dev
-```
+Check:
+- File type is `jpg`, `jpeg`, `png`, or `webp`
+- File size is below `10MB`
+- The form includes an image description
 
-טרמינל 2:
+## README Files In This Repo
 
-```bash
-cd client
-npm start
-```
+This repository includes:
+- `README.md`: the main project guide
+- `client/README.md`: frontend-specific notes
+- `server/src/seeds/README.md`: seed-system notes
 
-### תקלות נפוצות
-
-1. פורט תפוס (`3000` או `5000`)
-- לסגור טרמינלים/תהליכים ישנים ולהריץ שוב.
-
-2. שגיאת חיבור ל-MongoDB
-- לוודא ש-MongoDB פעיל.
-- לבדוק את הערך `MONGODB_URI` בקובץ `server/.env.development`.
-
-3. שגיאת `Missing script` בתיקיה הראשית
-- להשתמש בפקודות מה-README: `npm run dev`, `npm run install:all`.
-- `npm start` מיועד עכשיו להרצת גרסת production מהתיקיה הראשית.
-- לפיתוח מקומי יש להריץ `npm run dev` מהתיקיה הראשית.
+Use the root `README.md` as the main entry point for running the project.

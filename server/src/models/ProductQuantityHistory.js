@@ -57,7 +57,7 @@ const productQuantityHistorySchema = new mongoose.Schema({
         },
         role: {
             type: String,
-            enum: ['admin', 'main_brunch', 'user'],
+            enum: ['admin', 'main_branch', 'user'],
             required: true
         },
         branchName: {

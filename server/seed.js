@@ -41,7 +41,7 @@ async function seedDatabase() {
                 email: "admin@admin.com",
                 plainPassword: "Admin123!",
                 address: { country: "Israel", city: "Tel Aviv", street: "Main St", houseNumber: 1, zip: 12345 },
-                isMainBrunch: true,
+                isMainBranch: true,
                 isAdmin: true
             },
             {
@@ -51,7 +51,7 @@ async function seedDatabase() {
                 email: "main@branch.com",
                 plainPassword: "Business123!",
                 address: { country: "Israel", city: "Netanya", street: "Logistics Way", houseNumber: 50, zip: 54321 },
-                isMainBrunch: true,
+                isMainBranch: true,
                 isAdmin: false
             },
             {
@@ -61,7 +61,7 @@ async function seedDatabase() {
                 email: "north@branch.com",
                 plainPassword: "User123!",
                 address: { country: "Israel", city: "Haifa", street: "Mountain Rd", houseNumber: 12, zip: 99887 },
-                isMainBrunch: false,
+                isMainBranch: false,
                 isAdmin: false
             }
         ];
@@ -84,9 +84,9 @@ async function seedDatabase() {
                 email: userSpec.email,
                 password: hashedPassword,
                 address: userSpec.address,
-                isMainBrunch: userSpec.isMainBrunch,
+                isMainBranch: userSpec.isMainBranch,
                 isAdmin: userSpec.isAdmin,
-                brunches: userSpec.isMainBrunch ? [] : undefined
+                branches: userSpec.isMainBranch ? [] : undefined
             });
 
             await createdUser.save();
@@ -99,16 +99,16 @@ async function seedDatabase() {
 
         // 4. Ensure main branch links include self + child
         if (mainBranch) {
-            const branchIds = (mainBranch.brunches || []).map((id) => id.toString());
+            const branchIds = (mainBranch.branches || []).map((id) => id.toString());
             let changed = false;
 
             if (!branchIds.includes(mainBranch._id.toString())) {
-                mainBranch.brunches = [...(mainBranch.brunches || []), mainBranch._id];
+                mainBranch.branches = [...(mainBranch.branches || []), mainBranch._id];
                 changed = true;
             }
 
             if (childBranch && !branchIds.includes(childBranch._id.toString())) {
-                mainBranch.brunches = [...(mainBranch.brunches || []), childBranch._id];
+                mainBranch.branches = [...(mainBranch.branches || []), childBranch._id];
                 changed = true;
             }
 
@@ -122,7 +122,7 @@ async function seedDatabase() {
         if (!mainBranch) {
             console.log(chalk.yellow("   Main branch user not found, skipping product seeding."));
         } else {
-            const creatorRole = mainBranch.isAdmin ? "admin" : (mainBranch.isMainBrunch ? "main_brunch" : "user");
+            const creatorRole = mainBranch.isAdmin ? "admin" : (mainBranch.isMainBranch ? "main_branch" : "user");
             const creatorName = `${mainBranch.name?.first || "Main"} ${mainBranch.name?.last || "Branch"}`.trim();
 
             const productsData = [

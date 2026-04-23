@@ -152,7 +152,7 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/messages – list messages (admin/main_brunch/user)
+// GET /api/messages – list messages (admin/main_branch/user)
 // Query: status (active|open|reopened|closed), subject (general|support|feedback|other), page (1-based), search
 router.get('/', authMiddleware, async (req, res) => {
   if (!requireMailboxAccess(req, res)) return;

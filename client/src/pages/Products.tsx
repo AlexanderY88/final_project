@@ -120,7 +120,7 @@ const Products: React.FC = () => {
   const selectedScope = searchParams.get('scope') || undefined;
   const source = searchParams.get('from') || undefined;
   const isAdminUser = !!currentUser?.isAdmin;
-  const isMainBranchUser = !isAdminUser && !!currentUser?.isMainBrunch;
+  const isMainBranchUser = !isAdminUser && !!currentUser?.isMainBranch;
   const isAdminAllBranchesSelected = isAdminUser && selectedScope === 'all';
   const isAllBranchesSelected = isMainBranchUser && selectedScope === 'all';
   const [adminContextBranch, setAdminContextBranch] = useState<User | null>(null);
@@ -162,12 +162,12 @@ const Products: React.FC = () => {
 
         setAdminContextBranch(selectedBranch);
 
-        const mainBranchId = selectedMainBranchId || (selectedBranch.isMainBrunch
+        const mainBranchId = selectedMainBranchId || (selectedBranch.isMainBranch
           ? selectedBranch._id
-          : selectedBranch.brunches?.[0]);
+          : selectedBranch.branches?.[0]);
 
         if (!mainBranchId) {
-          setAdminNetworkMainBranch(selectedBranch.isMainBrunch ? selectedBranch : null);
+          setAdminNetworkMainBranch(selectedBranch.isMainBranch ? selectedBranch : null);
           return;
         }
 
@@ -180,7 +180,7 @@ const Products: React.FC = () => {
           setSearchParams(params);
         }
 
-        const mainBranch = selectedBranch.isMainBrunch
+        const mainBranch = selectedBranch.isMainBranch
           ? selectedBranch
           : await userService.getById(mainBranchId);
 
@@ -378,6 +378,18 @@ const Products: React.FC = () => {
     );
   }
 
+  const handleBackClick = () => {
+    if (source === 'admin-users') {
+      navigate('/admin/users');
+    } else if (source === 'main-branch-dashboard' || source === 'my-business') {
+      navigate('/dashboard');
+    } else if (source === 'dashboard') {
+      navigate('/dashboard');
+    } else {
+      navigate(-1);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Page Header */}
@@ -385,7 +397,7 @@ const Products: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={handleBackClick}
             className="border border-gray-300 px-3 py-2 rounded-lg hover:bg-gray-50 transition text-sm"
           >
             ← Back

@@ -1,10 +1,10 @@
 import api from './api';
 import { User } from '../types/auth';
-import { CreateChildBrunchData } from '../types/user';
+import { CreateChildBranchData } from '../types/user';
 
 export interface GetAllUsersQuery {
   search?: string;
-  role?: 'admin' | 'main_brunch' | 'user';
+  role?: 'admin' | 'main_branch' | 'user';
   city?: string;
 }
 
@@ -13,14 +13,14 @@ export interface CreateUserData {
   lastName: string;
   email: string;
   password: string;
-  role: 'admin' | 'main_brunch' | 'user';
+  role: 'admin' | 'main_branch' | 'user';
   phone?: string;
   city?: string;
   country?: string;
   street?: string;
   houseNumber?: number;
   zip?: number;
-  mainBrunchId?: string;
+  mainBranchId?: string;
 }
 
 export const getProfile = async (): Promise<User> => {
@@ -48,13 +48,13 @@ export const deleteUser = async (id: string) => {
   return data;
 };
 
-export const getChildBranches = async (mainBrunchId?: string) => {
-  const { data } = await api.get('/users/child-brunches', { params: { mainBrunchId } });
+export const getChildBranches = async (mainBranchId?: string) => {
+  const { data } = await api.get('/users/child-branches', { params: { mainBranchId } });
   return data;
 };
 
-export const createChildBranch = async (branchData: CreateChildBrunchData) => {
-  const { data } = await api.post('/users/create-child-brunch', branchData);
+export const createChildBranch = async (branchData: CreateChildBranchData) => {
+  const { data } = await api.post('/users/create-child-branch', branchData);
   return data;
 };
 

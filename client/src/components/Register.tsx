@@ -15,7 +15,7 @@ const Register: React.FC = () => {
     passwordConfirm: '',
     firstName: '',
     lastName: '',
-    role: 'main_brunch',
+    role: 'main_branch',
     phone: '',
     country: 'Israel',
     city: '',

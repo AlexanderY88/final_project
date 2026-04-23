@@ -42,6 +42,15 @@ if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'developme
   dotenv.config();
 }
 
+// Validate required environment variables at startup — fail fast rather than silently
+const REQUIRED_ENV_VARS = ['JWT_SECRET', 'MONGODB_URI'];
+for (const envVar of REQUIRED_ENV_VARS) {
+  if (!process.env[envVar]) {
+    console.error(`FATAL: Required environment variable "${envVar}" is not set. Exiting.`);
+    process.exit(1);
+  }
+}
+
 // Initialize Express application
 const app = express();
 const PORT = process.env.PORT || 5000;

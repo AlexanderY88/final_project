@@ -34,9 +34,9 @@ export const fetchAllUsers = createAsyncThunk(
 // Main Branch: Fetch its child branches
 export const fetchChildBranches = createAsyncThunk(
   'users/fetchChildBranches',
-  async (mainBrunchId: string | undefined, { rejectWithValue }) => {
+  async (mainBranchId: string | undefined, { rejectWithValue }) => {
     try {
-      return await userService.getChildBranches(mainBrunchId);
+      return await userService.getChildBranches(mainBranchId);
     } catch (error: unknown) {
       return rejectWithValue(extractApiErrorMessage(error, 'Failed to fetch child branches'));
     }

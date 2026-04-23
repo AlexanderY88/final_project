@@ -216,7 +216,7 @@ async function seedDatabase() {
             email: 'main1@company.com',
             password: hashedPassword,
             address: createAddress('Tel Aviv', 'Ben Yehuda St', 12, 65432),
-            role: 'main_brunch',
+            role: 'main_branch',
             branchName: 'Tel Aviv Main Branch',
             createdAt: new Date()
         });
@@ -233,7 +233,7 @@ async function seedDatabase() {
             email: 'main2@company.com',
             password: hashedPassword,
             address: createAddress('Jerusalem', 'King George St', 15, 91234),
-            role: 'main_brunch',
+            role: 'main_branch',
             branchName: 'Jerusalem Main Branch',
             createdAt: new Date()
         });
@@ -250,7 +250,7 @@ async function seedDatabase() {
             email: 'main3@company.com',
             password: hashedPassword,
             address: createAddress('Haifa', 'Carmel Ave', 25, 34567),
-            role: 'main_brunch',
+            role: 'main_branch',
             branchName: 'Haifa Main Branch',
             createdAt: new Date()
         });
