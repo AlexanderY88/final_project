@@ -346,3 +346,4 @@ This repository includes:
 - `server/src/seeds/README.md`: seed-system notes
 
 Use the root `README.md` as the main entry point for running the project.
+
