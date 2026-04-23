@@ -329,7 +329,7 @@ Check:
 
 Use the root commands exactly as documented:
 - `npm run dev` for development
-- `npm run install:all` for installation
+- `npm install` and then `npm run install:all` for installation
 - `npm start` only for the root production flow
 
 ### Product image upload fails
